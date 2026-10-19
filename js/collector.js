@@ -10,14 +10,17 @@
     }
     reset() {
       this.clock = new ActivityClock();
-      this.counts = { keydowns: 0, repeats: 0, corrections: 0, insertions: 0, clicks: 0, backgroundClicks: 0, routes: 0 };
+      this.counts = { keydowns: 0, repeats: 0, corrections: 0, insertions: 0, clicks: 0, backgroundClicks: 0, routes: 0, textTasks: 0, textEdits: 0, referenceCharacters: 0, targetAttempts: 0, targetMisses: 0 };
       this.holds = new Moments(); this.flights = new Moments(); this.paths = new Moments();
       this.keys = new Map(); this.lastDown = null; this.route = null; this.lastMove = -Infinity;
       this.running = false; this.paused = false; this.completed = false; this.composing = false;
+      this.deadline = null; this.endReason = null;
     }
-    start() {
+    start(checkpoint = null) {
       if (this.running) return;
-      this.reset(); this.running = true;
+      this.reset();
+      if (checkpoint) this.restore(checkpoint);
+      this.running = true;
       this.abort = new AbortController();
       const bind = (node, name, fn) => node.addEventListener(name, fn.bind(this), { capture: true, signal: this.abort.signal });
       bind(this.root, 'keydown', this.onKeyDown); bind(this.root, 'keyup', this.onKeyUp);
@@ -32,24 +35,29 @@
       this.timer = setInterval(() => this.tick(), 250);
     }
     clearTransient() { this.keys.clear(); this.lastDown = null; this.route = null; }
+    clockNow() {
+      const now = performance.now();
+      return this.deadline === null ? now : Math.min(now, now + this.deadline - Date.now());
+    }
     syncClock() {
       this.clearTransient();
-      this.clock.setEnabled(this.running && !this.paused && document.visibilityState === 'visible' && document.hasFocus(), performance.now());
+      this.clock.setEnabled(this.running && !this.paused && document.visibilityState === 'visible' && document.hasFocus(), this.clockNow());
     }
     pause(paused) { if (!this.running) return; this.paused = paused; this.syncClock(); }
     stop() {
       if (!this.running) return;
-      this.clock.setEnabled(false, performance.now());
+      this.clock.setEnabled(false, this.clockNow());
       this.running = false; this.abort.abort(); clearInterval(this.timer); this.clearTransient();
     }
     tick() {
       if (!this.running) return;
-      this.clock.tick(performance.now());
+      this.clock.tick(this.clockNow());
       if (this.clock.complete && !this.completed) { this.completed = true; this.stop(); this.onComplete(this.report()); }
+      else if (this.deadline !== null && Date.now() >= this.deadline) { this.endReason = 'window_ended'; this.stop(); this.onComplete(this.report()); }
     }
     accept(event) {
       this.tick();
-      return this.running && !this.paused && this.clock.enabled && event.isTrusted && event.target instanceof Element && !event.target.closest('[data-hh-private], input[type="password"], [autocomplete="one-time-code"], [autocomplete^="cc-"]');
+      return this.running && !this.paused && this.clock.enabled && event.isTrusted && event.target instanceof Element && this.root.contains(event.target) && !event.target.closest('[data-hh-private], input[type="password"], [autocomplete="one-time-code"], [autocomplete^="cc-"]');
     }
     isText(target) {
       return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && ['text', 'search'].includes(target.type)) || target.isContentEditable;
@@ -109,17 +117,53 @@
       }
       this.route = null;
     }
+    recordTextTask(reference, typed, event) {
+      if (!this.accept(event)) return null;
+      const result = global.HandHelper.textError(reference, typed);
+      this.counts.textTasks++; this.counts.textEdits += result.edits; this.counts.referenceCharacters += result.referenceLength;
+      this.clock.activity(performance.now());
+      return result;
+    }
+    recordTarget(hit, event) {
+      if (!this.accept(event) || event.detail === 0 || event.button !== 0 || (event.pointerType && event.pointerType !== 'mouse')) return false;
+      this.counts.targetAttempts++; if (!hit) this.counts.targetMisses++;
+      this.clock.activity(performance.now()); return true;
+    }
+    checkpoint() {
+      this.clock.tick(this.clockNow());
+      return { version: 2, activeMs: this.clock.activeMs, counts: { ...this.counts }, moments: Object.fromEntries(['holds', 'flights', 'paths'].map(key => [key, { n: this[key].n, mean: this[key].mean, m2: this[key].m2 }])) };
+    }
+    restore(data) {
+      if (!data || data.version !== 2 || !Number.isFinite(data.activeMs) || data.activeMs < 0 || data.activeMs > 3600000 || !data.counts || !data.moments) throw new Error('Повреждённый сохранённый сеанс.');
+      const counts = {};
+      for (const key of Object.keys(this.counts)) {
+        const value = data.counts[key];
+        if (!Number.isSafeInteger(value) || value < 0) throw new Error('Некорректный счётчик: ' + key);
+        counts[key] = value;
+      }
+      const moments = {};
+      for (const key of ['holds', 'flights', 'paths']) {
+        const value = data.moments[key];
+        if (!value || !Number.isSafeInteger(value.n) || value.n < 0 || !Number.isFinite(value.mean) || value.mean < 0 || !Number.isFinite(value.m2) || value.m2 < 0) throw new Error('Некорректная статистика: ' + key);
+        moments[key] = Object.assign(new Moments(), { n: value.n, mean: value.mean, m2: value.m2 });
+      }
+      if (counts.repeats > counts.keydowns || counts.backgroundClicks > counts.clicks || counts.targetMisses > counts.targetAttempts || counts.referenceCharacters < counts.textTasks || moments.holds.n > counts.keydowns || moments.paths.n !== counts.routes) throw new Error('Несогласованные счётчики.');
+      this.clock.activeMs = data.activeMs; this.counts = counts;
+      Object.assign(this, moments); this.clearTransient();
+    }
     report() {
-      this.clock.tick(performance.now());
+      this.clock.tick(this.clockNow());
       return {
-        version: 1, source: 'observation', activeSeconds: Math.floor(this.clock.activeMs / 1000),
+        version: 2, source: 'observation', activeSeconds: Math.floor(this.clock.activeMs / 1000),
         counts: { ...this.counts, holds: this.holds.n, flights: this.flights.n },
         features: {
           correctionRate: this.counts.corrections / Math.max(1, this.counts.corrections + this.counts.insertions),
           repeatRate: this.counts.repeats / Math.max(1, this.counts.keydowns),
           holdCV: Math.min(5, this.holds.cv), flightCV: Math.min(5, this.flights.cv),
           pathInefficiency: this.paths.n ? this.paths.mean : 1,
-          backgroundClickRate: this.counts.backgroundClicks / Math.max(1, this.counts.clicks)
+          backgroundClickRate: this.counts.backgroundClicks / Math.max(1, this.counts.clicks),
+          textErrorRate: Math.min(1, this.counts.textEdits / Math.max(1, this.counts.referenceCharacters)),
+          targetMissRate: this.counts.targetMisses / Math.max(1, this.counts.targetAttempts)
         }
       };
     }

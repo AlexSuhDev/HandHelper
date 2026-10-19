@@ -10,6 +10,8 @@
   <script defer src="js/core.js"></script>
   <script defer src="js/collector.js"></script>
   <script defer src="js/adaptation.js"></script>
+  <script defer src="js/runtime.js"></script>
+  <script defer src="js/research.js"></script>
   <script defer src="js/app.js"></script>
 </head>
 <body>
@@ -51,6 +53,18 @@
               <li><span class="request-symbol" aria-hidden="true">✓</span><div><strong>Расписание автобуса № 12</strong><span>Транспорт · учебный пример</span></div><span class="request-status done">Решено</span></li>
             </ul>
             <div id="request-feedback" class="request-feedback" role="status"></div>
+            <details class="precision-tasks" open><summary>Уточнение данных: точность ввода и выбора объекта</summary>
+              <p class="muted">Во время наблюдения выполните минимум три проверки текста и десять попыток выбора объекта. Здесь правильный ответ известен заранее; текст ответа сравнивается только в памяти.</p>
+              <label class="field-label" for="reference-input">Наберите образец вручную, сохраняя регистр и знаки:</label>
+              <p class="reference-text" id="reference-text">Улица Мира, дом 12, подъезд 3.</p>
+              <input type="text" id="reference-input" maxlength="500" autocomplete="off" spellcheck="false" placeholder="Введите текст образца">
+              <button type="button" id="check-reference" class="button">Проверить текст</button>
+              <p id="reference-feedback" role="status" class="task-feedback">Проверки ещё не выполнены.</p>
+              <p class="field-label">Нажмите объект: <strong id="target-name">Библиотека</strong></p>
+              <div class="target-board" id="target-board" aria-label="Выбор заданного объекта">
+                <button type="button" data-target="0">Библиотека</button><button type="button" data-target="1">Школа</button><button type="button" data-target="2">Парк</button><button type="button" data-target="3">Музей</button><button type="button" data-target="4">Почта</button><button type="button" data-target="5">Театр</button>
+              </div><p id="target-feedback" role="status" class="task-feedback">Используйте физическую мышь. Клавиатурный выбор не оценивается как попадание мышью.</p>
+            </details>
           </div>
         </div>
       </section>
@@ -63,8 +77,17 @@
         <label class="consent-label"><input type="checkbox" id="collection-consent"><span>Разрешаю локальный сбор числовых показателей клавиатуры и мыши в рабочей области на один сеанс.</span></label>
         <button id="start-session" class="button primary full" disabled>Начать час наблюдения <span aria-hidden="true">→</span></button>
         <div class="session-actions"><button id="pause-session" class="button secondary" disabled>Пауза</button><button id="finish-session" class="button secondary" disabled>Завершить</button></div>
-        <p class="privacy-note"><span aria-hidden="true">⌁</span> Текст, пароли и история действий не сохраняются. В памяти остаются только счётчики и статистики.</p>
-        <details class="observation-help"><summary>Как считается час?</summary><p>Считается время в активной вкладке и окне. После 30 секунд без действий отсчёт приостанавливается. Явная пауза и время в другой вкладке не учитываются. Перезагрузка страницы удаляет сеанс.</p><p>Для анализа нужны также минимум 200 нажатий, 100 удержаний, 100 интервалов набора, 30 кликов и 20 маршрутов мыши. Сенсорный ввод и IME не подходят для текущей модели.</p></details>
+        <details class="session-options"><summary>Расписание и сохранение</summary>
+          <p class="subtle">Расписание действует при открытой странице. Час активности должен поместиться в выбранное окно; иначе анализ сообщит о нехватке данных.</p>
+          <label class="field-label" for="window-start">Начало окна</label><input type="datetime-local" id="window-start">
+          <label class="field-label" for="window-end">Конец окна</label><input type="datetime-local" id="window-end">
+          <button type="button" id="arm-schedule" class="button secondary full">Запланировать наблюдение</button>
+          <button type="button" id="cancel-schedule" class="button secondary full" hidden>Отменить расписание</button><p id="schedule-status" role="status" class="subtle">Расписание не задано. Время — по часам вашего браузера.</p>
+          <label class="consent-label"><input type="checkbox" id="storage-consent"><span>Разрешаю сохранять числовой сеанс и модель в этом браузере для продолжения после перезагрузки.</span></label>
+          <button type="button" id="restore-session" class="button secondary full" hidden>Восстановить сохранённый сеанс</button><p id="storage-status" role="status" class="subtle">Без этого согласия всё остаётся только в памяти вкладки.</p>
+        </details>
+        <p class="privacy-note"><span aria-hidden="true">⌁</span> Текст и пароли не сохраняются. Для проверки образца ответ сравнивается локально и удаляется из поля; остаются числовые показатели.</p>
+        <details class="observation-help"><summary>Как считается час?</summary><p>Считается время в активной вкладке и окне. После 30 секунд без действий отсчёт приостанавливается. Явная пауза и время в другой вкладке не учитываются. Без согласия на сохранение перезагрузка удаляет сеанс.</p><p>Нужны минимум 200 нажатий, 100 удержаний, 100 интервалов, 30 кликов, 20 маршрутов, три проверки текста и десять попыток выбора объекта. Сенсорный ввод и IME не подходят для текущей модели.</p></details>
       </aside>
     </div>
 
@@ -80,6 +103,8 @@
             <div class="metric"><span>Разброс темпа набора</span><strong id="metric-flights">—</strong><div class="metric-track"><i id="bar-flights"></i></div><small>Коэффициент вариации интервалов</small></div>
             <div class="metric"><span>Извилистость маршрута</span><strong id="metric-paths">—</strong><div class="metric-track"><i id="bar-paths"></i></div><small>Длина пути / прямое расстояние</small></div>
             <div class="metric"><span>Клики по фону</span><strong id="metric-background">—</strong><div class="metric-track"><i id="bar-background"></i></div><small>Не обязательно ошибочные клики</small></div>
+            <div class="metric"><span>Ошибки по образцу</span><strong id="metric-text">—</strong><div class="metric-track"><i id="bar-text"></i></div><small>Расстояние редактирования / длина образцов</small></div>
+            <div class="metric"><span>Ошибки выбора цели</span><strong id="metric-target">—</strong><div class="metric-track"><i id="bar-target"></i></div><small>Неверные выборы / попытки в задании</small></div>
           </div>
           <p class="card-footnote">Показатели зависят от привычек, устройства, задачи и усталости. Исправления не равны опечаткам, а клики по фону не доказывают промахи.</p>
         </div>
@@ -89,6 +114,7 @@
           <ul id="quality-problems" class="quality-problems" hidden></ul>
           <div id="adaptation-offer" hidden><p id="adaptation-description"></p><label class="consent-label"><input type="checkbox" id="adaptation-consent"><span>Разрешаю применить предложенную адаптацию к демонстрационному сайту.</span></label><button id="apply-adaptation" class="button primary full" disabled>Применить адаптацию</button></div>
           <button id="revert-adaptation" class="button secondary full" hidden>Вернуть стандартный интерфейс</button>
+          <button id="export-adapted-site" class="button secondary full" hidden>Скачать адаптированный HTML</button>
           <span class="result-disclaimer">Кластер описывает взаимодействие. Он не устанавливает наличие или степень заболевания.</span>
         </div>
       </div>
@@ -98,10 +124,11 @@
       <div class="section-title"><div><p class="eyebrow">ПРОЗРАЧНАЯ ЛОГИКА</p><h2 id="model-title">Модель и проверка сценариев</h2></div><span class="pill" id="model-badge">K-means · 4 кластера · синтетические данные</span></div>
       <div class="model-grid">
         <div class="demo-scenarios"><h3>Проверьте полный сценарий за минуту</h3><p class="muted">Эти кнопки используют готовые синтетические показатели. Они не собирают данные и не заменяют реальное наблюдение.</p><div class="scenario-buttons"><button class="scenario" data-scenario="0"><span class="scenario-number">01</span><strong>Обычный профиль</strong><span>Без адаптации ↗</span></button><button class="scenario" data-scenario="1"><span class="scenario-number">02</span><strong>Небольшие трудности</strong><span>Поддержка уровня 1 ↗</span></button><button class="scenario" data-scenario="2"><span class="scenario-number">03</span><strong>Заметные трудности</strong><span>Поддержка уровня 2 ↗</span></button><button class="scenario" data-scenario="3"><span class="scenario-number">04</span><strong>Выраженные трудности</strong><span>Поддержка уровня 3 ↗</span></button></div></div>
-        <div class="training-card"><h3>Обучение на своей выборке</h3><p class="muted">Импортируйте 80–10 000 независимых сессий в JSON. Стандартизация и K-means выполняются на устройстве.</p><label class="file-label" for="training-file">Выбрать JSON с показателями <span aria-hidden="true">↑</span><input id="training-file" type="file" accept=".json,application/json"></label><p id="training-status" class="subtle" role="status">Сейчас: 400 синтетических сессий. Клиническая валидация отсутствует.</p><button class="text-button" id="download-training">Скачать пример обучающей выборки</button><p class="card-footnote">Порядок кластеров определяется эвристикой потребности в поддержке. Импорт реальных данных сам по себе не превращает модель в диагностическую.</p></div>
+        <div class="training-card"><h3>Обучение и проверка модели</h3><p class="muted">Загрузите числовую выборку, размеченное исследование или ранее экспортированную модель v2. В исследовании участники обучения и проверки не пересекаются.</p><label class="file-label" for="training-file">Выбрать JSON <span aria-hidden="true">↑</span><input id="training-file" type="file" accept=".json,application/json"></label><p id="training-status" class="subtle" role="status">Сейчас: 400 синтетических сессий. Клиническая валидация отсутствует.</p><button class="text-button" id="download-training">Пример числовой выборки</button><button class="text-button" id="download-study">Пример размеченного исследования</button><button class="text-button" id="export-model">Скачать текущую модель</button><button class="text-button" id="export-evaluation" disabled>Скачать результаты проверки модели</button><p class="card-footnote">Метки исследования 0–3 задаёт автор по независимой оценке. Импорт и высокая точность на одной выборке не означают клиническую валидацию.</p></div>
       </div>
     </section>
-    <div class="data-footer"><p><strong>Ваши данные — под вашим контролем.</strong><br><span>Нет сервера и внешних запросов. Наблюдение и модель хранятся только в памяти вкладки.</span></p><button id="delete-data" class="button danger">Остановить и удалить данные</button></div>
+    <section class="research-export"><h3>Сбор выборки для исследования</h3><p class="muted">Экспортируйте завершённое реальное наблюдение с достаточными данными. Используйте случайный код участника, без ФИО. Метку назначает специалист отдельно; программа её не придумывает.</p><label class="field-label" for="participant-id">Обезличенный код участника</label><input id="participant-id" type="text" maxlength="64" pattern="[a-zA-Z0-9_-]+" placeholder="Например, participant_001"><button type="button" id="export-participant" class="button secondary" disabled>Скачать сессию для исследования</button></section>
+    <div class="data-footer"><p><strong>Ваши данные — под вашим контролем.</strong><br><span>Нет внешних запросов. Сохранение числовых показателей в браузере включается отдельным согласием.</span></p><button id="delete-data" class="button danger">Остановить и удалить данные</button></div>
     <p id="app-message" class="app-message" role="status" aria-live="polite"></p>
   </main>
   <footer class="footer"><a class="brand" href="#">HandHelper<span class="footer-dot">.</span></a><span>Комфортный интерфейс начинается с внимания к человеку.</span><a href="README.md">О проекте и ограничениях ↗</a></footer>

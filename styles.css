@@ -113,6 +113,25 @@ progress::-moz-progress-bar { background: #749466; }
 .observation-help { padding-top: 14px; border-top: 1px solid var(--line); font-size: 11px; color: #74816d; }
 .observation-help summary { cursor: pointer; min-height: 28px; }
 .observation-help p { margin-top: 10px; }
+.precision-tasks { margin-top: 25px; padding: 18px; border: 1px solid var(--line); border-radius: 9px; }
+.precision-tasks summary, .session-options summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.precision-tasks > p.muted { font-size: 12px; margin-top: 12px; }
+.reference-text { padding: 12px; background: #f0f4f8; border-radius: 6px; font-size: var(--hh-font); user-select: none; }
+.precision-tasks #reference-input { margin: 12px 0; }
+.task-feedback { font-size: 12px; color: #62778b; margin-top: 10px; }
+.target-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hh-gap); padding: 16px; background: #f3f6f9; border-radius: 9px; }
+.target-board button { min-height: var(--hh-control); border: 1px solid #bbcad7; border-radius: 6px; background: white; color: #335779; font-size: var(--hh-font); padding: 8px; overflow-wrap: anywhere; }
+.session-options { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+.session-options p { margin: 10px 0; }
+.session-options input[type="datetime-local"], .research-export input { display: block; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 9px; background: white; color: var(--ink); font-size: 12px; }
+.session-options .button { margin-top: 10px; }
+.session-options .consent-label { margin-top: 18px; }
+.research-export { border: 1px solid var(--line); border-radius: 12px; padding: 24px; background: white; margin-top: 24px; }
+.research-export p { font-size: 12px; margin-top: 10px; }
+.research-export input { max-width: 350px; margin-bottom: 12px; }
+.training-card .text-button { display: block; }
+#export-adapted-site { margin-top: 10px; }
+[data-hh-support="3"] .target-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .analysis-section, .model-section { margin-top: 46px; }
 .section-title { display: flex; justify-content: space-between; gap: 20px; align-items: flex-end; margin-bottom: 21px; }
 .section-title .eyebrow { margin-bottom: 9px; }

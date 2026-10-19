@@ -1,8 +1,8 @@
 /* Pure numerical model. No DOM, network calls, or text content. */
 (function (global) {
   'use strict';
-  const FEATURES = ['correctionRate', 'repeatRate', 'holdCV', 'flightCV', 'pathInefficiency', 'backgroundClickRate'];
-  const LIMITS = [[0, 1], [0, 1], [0, 5], [0, 5], [1, 20], [0, 1]];
+  const FEATURES = ['correctionRate', 'repeatRate', 'holdCV', 'flightCV', 'pathInefficiency', 'backgroundClickRate', 'textErrorRate', 'targetMissRate'];
+  const LIMITS = [[0, 1], [0, 1], [0, 5], [0, 5], [1, 20], [0, 1], [0, 1], [0, 1]];
   const LABELS = ['Обычный профиль взаимодействия', 'Небольшая потребность в поддержке', 'Заметная потребность в поддержке', 'Высокая потребность в поддержке'];
   class Moments {
     constructor() { this.n = 0; this.mean = 0; this.m2 = 0; }
@@ -78,14 +78,14 @@
       const ds = points.filter(p => nearest(p, centers) === i).map(p => Math.sqrt(distance2(p, c))).sort((a, b) => a - b);
       return Math.max(1, (ds[Math.floor((ds.length - 1) * 0.95)] || 0) * 1.75);
     });
-    return { version: 1, features: FEATURES.slice(), synthetic, sampleCount: rows.length, means, scales, centers, radii, inertia: best.inertia };
+    return { version: 2, features: FEATURES.slice(), synthetic, sampleCount: rows.length, means, scales, centers, radii, inertia: best.inertia };
   }
   function quality(report) {
     const problems = [];
     if (!report || !report.counts || !report.features) return ['Нет отчёта с показателями.'];
     if (!Number.isFinite(report.activeSeconds) || report.activeSeconds < 3600) problems.push('Нужен час активной работы.');
-    const minimum = { keydowns: 200, holds: 100, flights: 100, clicks: 30, routes: 20 };
-    const names = { keydowns: 'нажатий клавиш', holds: 'удержаний клавиш', flights: 'интервалов набора', clicks: 'кликов мышью', routes: 'маршрутов мыши' };
+    const minimum = { keydowns: 200, holds: 100, flights: 100, clicks: 30, routes: 20, textTasks: 3, targetAttempts: 10 };
+    const names = { keydowns: 'нажатий клавиш', holds: 'удержаний клавиш', flights: 'интервалов набора', clicks: 'кликов мышью', routes: 'маршрутов мыши', textTasks: 'проверок текста по образцу', targetAttempts: 'попыток выбора заданной цели' };
     for (const [key, min] of Object.entries(minimum)) {
       const n = report.counts[key];
       if (!Number.isInteger(n) || n < min) problems.push('Недостаточно ' + names[key] + ': ' + (Number.isInteger(n) && n >= 0 ? n : 0) + ' / ' + min + '.');
@@ -100,24 +100,45 @@
     const cluster = nearest(point, model.centers);
     const distance = Math.sqrt(distance2(point, model.centers[cluster]));
     if (distance > model.radii[cluster]) return { status: 'out_of_distribution', level: null, label: 'Профиль вне обучающей выборки', distance, synthetic: model.synthetic };
-    return { status: 'ok', level: cluster, label: LABELS[cluster], distance, synthetic: model.synthetic, sampleCount: model.sampleCount };
+    const level = model.levels ? model.levels[cluster] : cluster;
+    if (level === null) return { status: 'unmapped', level: null, label: 'Кластер без однозначной интерпретации', synthetic: model.synthetic };
+    return { status: 'ok', level, cluster, label: LABELS[level], distance, synthetic: model.synthetic, sampleCount: model.sampleCount, interpretation: model.levels ? 'reference_labels' : 'heuristic' };
   }
   const PROTOTYPES = [
-    [0.025, 0.008, 0.22, 0.32, 1.12, 0.03],
-    [0.095, 0.035, 0.48, 0.62, 1.70, 0.12],
-    [0.20, 0.09, 0.82, 0.98, 2.70, 0.26],
-    [0.34, 0.18, 1.28, 1.48, 4.30, 0.44]
+    [0.025, 0.008, 0.22, 0.32, 1.12, 0.03, 0.015, 0.02],
+    [0.095, 0.035, 0.48, 0.62, 1.70, 0.12, 0.08, 0.12],
+    [0.20, 0.09, 0.82, 0.98, 2.70, 0.26, 0.18, 0.28],
+    [0.34, 0.18, 1.28, 1.48, 4.30, 0.44, 0.32, 0.45]
   ];
   function syntheticRows() {
     const random = rng(314159);
     return PROTOTYPES.flatMap(center => Array.from({ length: 100 }, () => Object.fromEntries(FEATURES.map((key, j) => {
-      const spread = [0.028, 0.015, 0.12, 0.14, 0.3, 0.045][j];
+      const spread = [0.028, 0.015, 0.12, 0.14, 0.3, 0.045, 0.025, 0.03][j];
       return [key, Math.min(LIMITS[j][1], Math.max(LIMITS[j][0], center[j] + (random() + random() + random() - 1.5) * spread))];
     }))));
   }
   function exampleReport(level) {
     if (!Number.isInteger(level) || level < 0 || level > 3) throw new Error('Неизвестный сценарий.');
-    return { version: 1, source: 'synthetic', activeSeconds: 3600, counts: { keydowns: 820, holds: 810, flights: 790, clicks: 120, routes: 90 }, features: Object.fromEntries(FEATURES.map((key, j) => [key, PROTOTYPES[level][j]])) };
+    return { version: 2, source: 'synthetic', activeSeconds: 3600, counts: { keydowns: 820, holds: 810, flights: 790, clicks: 120, routes: 90, textTasks: 6, targetAttempts: 30 }, features: Object.fromEntries(FEATURES.map((key, j) => [key, PROTOTYPES[level][j]])) };
   }
-  global.HandHelper = { FEATURES, LABELS, Moments, ActivityClock, fit, predict, quality, syntheticRows, exampleReport };
+  function textError(reference, typed) {
+    const a = Array.from(reference.normalize('NFC')), b = Array.from(typed.normalize('NFC'));
+    if (!a.length || a.length > 500 || b.length > 500) throw new Error('Образец и ответ должны содержать не более 500 символов; образец не пустой.');
+    let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const row = [i];
+      for (let j = 1; j <= b.length; j++) row[j] = Math.min(row[j - 1] + 1, previous[j] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = row;
+    }
+    return { edits: previous[b.length], referenceLength: a.length, rate: Math.min(1, previous[b.length] / a.length) };
+  }
+  function validateModel(model) {
+    const fail = () => { throw new Error('Некорректная или несовместимая модель (нужна версия 2, восемь признаков).'); };
+    if (!model || model.version !== 2 || JSON.stringify(model.features) !== JSON.stringify(FEATURES) || typeof model.synthetic !== 'boolean' || !Number.isInteger(model.sampleCount) || model.sampleCount < 80) fail();
+    const numeric = (values, n) => Array.isArray(values) && values.length === n && values.every(Number.isFinite);
+    if (!numeric(model.means, 8) || !numeric(model.scales, 8) || model.scales.some(x => x <= 0) || !numeric(model.radii, 4) || model.radii.some(x => x <= 0) || !Array.isArray(model.centers) || model.centers.length !== 4 || !model.centers.every(c => numeric(c, 8))) fail();
+    if (model.levels && (!Array.isArray(model.levels) || model.levels.length !== 4 || model.levels.some(x => x !== null && ![0, 1, 2, 3].includes(x)))) fail();
+    return JSON.parse(JSON.stringify(model));
+  }
+  global.HandHelper = { FEATURES, LABELS, Moments, ActivityClock, fit, predict, quality, syntheticRows, exampleReport, textError, validateModel, vector, nearest, distance2, rng };
 })(globalThis);
