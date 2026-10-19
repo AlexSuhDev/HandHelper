@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f2">
+  <meta name="description" content="HandHelper — локальный прототип оценки взаимодействия с клавиатурой и мышью и адаптации интерфейса с согласия пользователя.">
+  <title>HandHelper — комфортное взаимодействие</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="js/core.js"></script>
+  <script defer src="js/collector.js"></script>
+  <script defer src="js/adaptation.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">К рабочей области</a>
+  <header class="header">
+    <a href="#" class="brand" aria-label="HandHelper, начало страницы"><span class="brand-mark" aria-hidden="true">h<span>h</span></span>HandHelper<span class="brand-tag">research prototype</span></a>
+    <nav aria-label="Разделы"><a href="#workspace">Рабочая область</a><a href="#analysis">Анализ</a><a href="#model">Модель</a></nav>
+    <span class="local-badge"><span class="dot"></span>Локально на устройстве</span>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">ТЕХНОЛОГИИ, КОТОРЫЕ ПОМОГАЮТ</p><h1 id="page-title">Привычные действия.<br><span>Больше комфорта.</span></h1><p class="lead">Система изучает особенности взаимодействия с сайтом<br class="desktop-break"> и предлагает более удобный интерфейс. Решение — за вами.</p></div>
+      <div class="intro-note"><span class="note-icon" aria-hidden="true">↗</span><div><strong>Сначала понять, затем помочь</strong><p>Клавиатура и мышь → показатели →<br>кластер → согласие → адаптация</p><span class="subtle">Исследовательский прототип · не медицинский диагноз</span></div></div>
+    </section>
+
+    <div class="workspace-grid" id="workspace">
+      <section class="site-card" aria-labelledby="site-title">
+        <div class="panel-heading"><div class="panel-label"><span class="dot blue"></span>ДЕМОНСТРАЦИОННЫЙ САЙТ</div><span class="pill" id="adaptation-badge">Стандартный интерфейс</span></div>
+        <div id="demo-site" data-hh-site>
+          <div class="demo-header"><span class="demo-logo" aria-hidden="true">◈</span><strong>Город рядом</strong><span class="demo-header-caption">Личный кабинет жителя</span></div>
+          <div class="demo-body">
+            <p class="eyebrow">СЕРВИС ОБРАЩЕНИЙ</p><h2 id="site-title">Чем мы можем помочь?</h2><p class="muted">Создайте обращение или продолжите работу с заявками.</p>
+            <form id="request-form">
+              <fieldset class="category-fieldset"><legend>Выберите тему</legend><div class="categories">
+                <label class="category"><input type="radio" name="category" value="Благоустройство" checked><span aria-hidden="true">♧</span><span>Благоустройство</span></label>
+                <label class="category"><input type="radio" name="category" value="Транспорт"><span aria-hidden="true">↔</span><span>Транспорт</span></label>
+                <label class="category"><input type="radio" name="category" value="Другое"><span aria-hidden="true">⋯</span><span>Другое</span></label>
+              </div></fieldset>
+              <label class="field-label" for="request-title">Тема обращения</label>
+              <input id="request-title" name="title" placeholder="Например, освещение во дворе" maxlength="120" required autocomplete="off">
+              <label class="field-label" for="request-text">Описание</label>
+              <textarea id="request-text" name="description" rows="4" placeholder="Расскажите, что произошло и где нужна помощь…" maxlength="4000" required></textarea>
+              <div class="form-footer"><span class="subtle">Учебная форма · данные никуда не отправляются</span><button type="submit" class="button primary">Создать обращение <span aria-hidden="true">↗</span></button></div>
+            </form>
+            <div class="requests-heading"><h3>Мои обращения</h3><span class="count-badge" id="request-count">2</span></div>
+            <ul class="requests-list" id="requests-list">
+              <li><span class="request-symbol" aria-hidden="true">↗</span><div><strong>Освещение на пешеходной дорожке</strong><span>Благоустройство · учебный пример</span></div><span class="request-status">В работе</span></li>
+              <li><span class="request-symbol" aria-hidden="true">✓</span><div><strong>Расписание автобуса № 12</strong><span>Транспорт · учебный пример</span></div><span class="request-status done">Решено</span></li>
+            </ul>
+            <div id="request-feedback" class="request-feedback" role="status"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="observation-card" aria-labelledby="observe-title">
+        <div class="panel-label"><span class="dot" id="status-dot"></span>ПАНЕЛЬ HANDHELPER</div>
+        <h2 id="observe-title">Наблюдение</h2><p class="muted">Обычная работа с сайтом — без отдельных тестов и заданий.</p>
+        <div class="session-state"><span id="session-status" role="status">Ожидает вашего согласия</span><span class="timer" id="session-timer">00:00<span> / 60:00</span></span><progress id="session-progress" max="3600" value="0" aria-label="Прогресс часа активного наблюдения"></progress></div>
+        <div class="live-counts"><div><strong id="key-count">0</strong><span>нажатий клавиш</span></div><div><strong id="click-count">0</strong><span>кликов мышью</span></div></div>
+        <label class="consent-label"><input type="checkbox" id="collection-consent"><span>Разрешаю локальный сбор числовых показателей клавиатуры и мыши в рабочей области на один сеанс.</span></label>
+        <button id="start-session" class="button primary full" disabled>Начать час наблюдения <span aria-hidden="true">→</span></button>
+        <div class="session-actions"><button id="pause-session" class="button secondary" disabled>Пауза</button><button id="finish-session" class="button secondary" disabled>Завершить</button></div>
+        <p class="privacy-note"><span aria-hidden="true">⌁</span> Текст, пароли и история действий не сохраняются. В памяти остаются только счётчики и статистики.</p>
+        <details class="observation-help"><summary>Как считается час?</summary><p>Считается время в активной вкладке и окне. После 30 секунд без действий отсчёт приостанавливается. Явная пауза и время в другой вкладке не учитываются. Перезагрузка страницы удаляет сеанс.</p><p>Для анализа нужны также минимум 200 нажатий, 100 удержаний, 100 интервалов набора, 30 кликов и 20 маршрутов мыши. Сенсорный ввод и IME не подходят для текущей модели.</p></details>
+      </aside>
+    </div>
+
+    <section class="analysis-section" id="analysis" aria-labelledby="analysis-title">
+      <div class="section-title"><div><p class="eyebrow">ОТ НАБЛЮДЕНИЯ К ПОДДЕРЖКЕ</p><h2 id="analysis-title">Картина взаимодействия</h2></div><button id="export-report" class="button secondary" disabled>Скачать отчёт JSON <span aria-hidden="true">↓</span></button></div>
+      <div class="analysis-grid">
+        <div class="metrics-card">
+          <div class="card-title"><h3>Показатели сеанса</h3><span class="pill" id="data-source">Нет данных</span></div>
+          <div class="metrics-grid" id="metrics-grid">
+            <div class="metric"><span>Доля исправлений</span><strong id="metric-corrections">—</strong><div class="metric-track"><i id="bar-corrections"></i></div><small>Удаления среди операций ввода</small></div>
+            <div class="metric"><span>Повторные нажатия</span><strong id="metric-repeats">—</strong><div class="metric-track"><i id="bar-repeats"></i></div><small>События автоповтора клавиш</small></div>
+            <div class="metric"><span>Разброс удержания</span><strong id="metric-holds">—</strong><div class="metric-track"><i id="bar-holds"></i></div><small>Коэффициент вариации</small></div>
+            <div class="metric"><span>Разброс темпа набора</span><strong id="metric-flights">—</strong><div class="metric-track"><i id="bar-flights"></i></div><small>Коэффициент вариации интервалов</small></div>
+            <div class="metric"><span>Извилистость маршрута</span><strong id="metric-paths">—</strong><div class="metric-track"><i id="bar-paths"></i></div><small>Длина пути / прямое расстояние</small></div>
+            <div class="metric"><span>Клики по фону</span><strong id="metric-background">—</strong><div class="metric-track"><i id="bar-background"></i></div><small>Не обязательно ошибочные клики</small></div>
+          </div>
+          <p class="card-footnote">Показатели зависят от привычек, устройства, задачи и усталости. Исправления не равны опечаткам, а клики по фону не доказывают промахи.</p>
+        </div>
+        <div class="result-card" id="result-card">
+          <div class="panel-label">РЕЗУЛЬТАТ АНАЛИЗА</div><div class="result-icon" id="result-icon" aria-hidden="true">⌁</div>
+          <h3 id="result-title">Сначала — немного данных</h3><p id="result-description">После часа активной работы система сопоставит показатели с кластерами модели.</p>
+          <ul id="quality-problems" class="quality-problems" hidden></ul>
+          <div id="adaptation-offer" hidden><p id="adaptation-description"></p><label class="consent-label"><input type="checkbox" id="adaptation-consent"><span>Разрешаю применить предложенную адаптацию к демонстрационному сайту.</span></label><button id="apply-adaptation" class="button primary full" disabled>Применить адаптацию</button></div>
+          <button id="revert-adaptation" class="button secondary full" hidden>Вернуть стандартный интерфейс</button>
+          <span class="result-disclaimer">Кластер описывает взаимодействие. Он не устанавливает наличие или степень заболевания.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="model-section" id="model" aria-labelledby="model-title">
+      <div class="section-title"><div><p class="eyebrow">ПРОЗРАЧНАЯ ЛОГИКА</p><h2 id="model-title">Модель и проверка сценариев</h2></div><span class="pill" id="model-badge">K-means · 4 кластера · синтетические данные</span></div>
+      <div class="model-grid">
+        <div class="demo-scenarios"><h3>Проверьте полный сценарий за минуту</h3><p class="muted">Эти кнопки используют готовые синтетические показатели. Они не собирают данные и не заменяют реальное наблюдение.</p><div class="scenario-buttons"><button class="scenario" data-scenario="0"><span class="scenario-number">01</span><strong>Обычный профиль</strong><span>Без адаптации ↗</span></button><button class="scenario" data-scenario="1"><span class="scenario-number">02</span><strong>Небольшие трудности</strong><span>Поддержка уровня 1 ↗</span></button><button class="scenario" data-scenario="2"><span class="scenario-number">03</span><strong>Заметные трудности</strong><span>Поддержка уровня 2 ↗</span></button><button class="scenario" data-scenario="3"><span class="scenario-number">04</span><strong>Выраженные трудности</strong><span>Поддержка уровня 3 ↗</span></button></div></div>
+        <div class="training-card"><h3>Обучение на своей выборке</h3><p class="muted">Импортируйте 80–10 000 независимых сессий в JSON. Стандартизация и K-means выполняются на устройстве.</p><label class="file-label" for="training-file">Выбрать JSON с показателями <span aria-hidden="true">↑</span><input id="training-file" type="file" accept=".json,application/json"></label><p id="training-status" class="subtle" role="status">Сейчас: 400 синтетических сессий. Клиническая валидация отсутствует.</p><button class="text-button" id="download-training">Скачать пример обучающей выборки</button><p class="card-footnote">Порядок кластеров определяется эвристикой потребности в поддержке. Импорт реальных данных сам по себе не превращает модель в диагностическую.</p></div>
+      </div>
+    </section>
+    <div class="data-footer"><p><strong>Ваши данные — под вашим контролем.</strong><br><span>Нет сервера и внешних запросов. Наблюдение и модель хранятся только в памяти вкладки.</span></p><button id="delete-data" class="button danger">Остановить и удалить данные</button></div>
+    <p id="app-message" class="app-message" role="status" aria-live="polite"></p>
+  </main>
+  <footer class="footer"><a class="brand" href="#">HandHelper<span class="footer-dot">.</span></a><span>Комфортный интерфейс начинается с внимания к человеку.</span><a href="README.md">О проекте и ограничениях ↗</a></footer>
+  <noscript>Для работы прототипа необходимо разрешить JavaScript в браузере.</noscript>
+</body>
+</html>
