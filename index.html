@@ -4,38 +4,50 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f5f6f2">
-  <meta name="description" content="HandHelper — локальный прототип оценки взаимодействия с клавиатурой и мышью и адаптации интерфейса с согласия пользователя.">
-  <title>HandHelper — комфортное взаимодействие</title>
+  <meta name="description" content="Город рядом — городской портал с обращениями, новостями и адаптацией интерфейса с согласия пользователя.">
+  <title>Город рядом — личный кабинет жителя</title>
+  <script src="js/role.js"></script>
   <link rel="stylesheet" href="styles.css">
   <script defer src="js/core.js"></script>
   <script defer src="js/collector.js"></script>
   <script defer src="js/adaptation.js"></script>
   <script defer src="js/runtime.js"></script>
   <script defer src="js/research.js"></script>
+  <script defer src="js/statistics.js"></script>
   <script defer src="js/app.js"></script>
+  <script defer src="js/portal.js"></script>
+  <script defer src="js/admin.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#workspace">К рабочей области</a>
-  <header class="header">
-    <a href="#" class="brand" aria-label="HandHelper, начало страницы"><span class="brand-mark" aria-hidden="true">h<span>h</span></span>HandHelper<span class="brand-tag">research prototype</span></a>
-    <nav aria-label="Разделы"><a href="#workspace">Рабочая область</a><a href="#analysis">Анализ</a><a href="#model">Модель</a></nav>
-    <span class="local-badge"><span class="dot"></span>Локально на устройстве</span>
-  </header>
+  <header class="header"><a href="#" class="brand"><span class="brand-mark" aria-hidden="true">◈</span>Город рядом</a><nav aria-label="Разделы"><a href="#services">Услуги</a><a href="#my-requests">Обращения</a><a href="#city-news">Новости</a><a href="#comfort">Настройки</a><a href="#admin-statistics" data-admin-only>Статистика</a><a href="#analysis" data-admin-only>Аналитика</a><a href="#model" data-admin-only>Модель</a></nav><div class="header-account"><span class="local-badge" data-admin-only>Администратор</span><button type="button" id="admin-login-button" class="button secondary">Вход администратора</button><button type="button" id="admin-logout-button" class="button secondary" hidden>Выйти</button></div></header>
 
   <main>
-    <section class="intro" aria-labelledby="page-title">
-      <div><p class="eyebrow">ТЕХНОЛОГИИ, КОТОРЫЕ ПОМОГАЮТ</p><h1 id="page-title">Привычные действия.<br><span>Больше комфорта.</span></h1><p class="lead">Система изучает особенности взаимодействия с сайтом<br class="desktop-break"> и предлагает более удобный интерфейс. Решение — за вами.</p></div>
-      <div class="intro-note"><span class="note-icon" aria-hidden="true">↗</span><div><strong>Сначала понять, затем помочь</strong><p>Клавиатура и мышь → показатели →<br>кластер → согласие → адаптация</p><span class="subtle">Исследовательский прототип · не медицинский диагноз</span></div></div>
+
+    <section id="admin-statistics" class="admin-statistics" data-admin-only aria-labelledby="admin-statistics-title">
+      <div class="portal-section-heading"><div><p class="eyebrow">КАБИНЕТ АДМИНИСТРАТОРА</p><h2 id="admin-statistics-title" tabindex="-1">Статистика сайта</h2></div><div class="statistics-actions"><label for="statistics-period">Период</label><select id="statistics-period"><option value="7">7 дней</option><option value="30">30 дней</option><option value="all">Всё время</option></select><button type="button" id="refresh-statistics" class="button secondary">Обновить</button><button type="button" id="export-statistics" class="button secondary" disabled>Последние сеансы CSV</button></div></div>
+      <div class="statistics-cards"><div><span>Сеансов с согласием</span><strong data-statistic="sessions">—</strong></div><div><span>Активных минут</span><strong data-statistic="minutes">—</strong></div><div><span>Нажатий клавиш</span><strong data-statistic="keydowns">—</strong></div><div><span>Кликов мышью</span><strong data-statistic="clicks">—</strong></div><div><span>Созданий обращений</span><strong data-statistic="requests">—</strong></div><div><span>Выборов услуги</span><strong data-statistic="services">—</strong></div><div><span>Предложений адаптации</span><strong data-statistic="offers">—</strong></div><div><span>Принятых предложений</span><strong data-statistic="accepted">—</strong></div></div>
+      <p id="statistics-empty" class="empty-state" hidden>Пока нет сеансов с согласием на статистику. Показатели появятся после работы пользователей с сайтом.</p>
+      <div class="statistics-details"><div><h3>Сеансы по дням</h3><div id="statistics-trend" class="statistics-trend" role="group" aria-label="Количество сеансов по дням"></div><p class="subtle">Группировка по UTC. Для периода «Всё время» график показывает последние 30 дней.</p></div><div><h3>Выбранные варианты интерфейса</h3><div id="statistics-levels" class="statistics-levels"></div><p class="subtle">Только числовые действия с согласием пользователя. Тексты обращений и введённые символы не передаются.</p></div></div>
+      <h3>Последние 50 сеансов за выбранный период</h3><div class="statistics-table-wrap" tabindex="0" role="region" aria-label="Таблица последних сеансов"><table class="statistics-table"><thead><tr><th scope="col">Код сеанса</th><th scope="col">Начало</th><th scope="col">Минут</th><th scope="col">Нажатий</th><th scope="col">Кликов</th><th scope="col">Созданий обращений</th></tr></thead><tbody id="statistics-recent"></tbody></table></div>
+      <p id="statistics-status" class="subtle" role="status"></p>
     </section>
 
     <div class="workspace-grid" id="workspace">
       <section class="site-card" aria-labelledby="site-title">
-        <div class="panel-heading"><div class="panel-label"><span class="dot blue"></span>ДЕМОНСТРАЦИОННЫЙ САЙТ</div><span class="pill" id="adaptation-badge">Стандартный интерфейс</span></div>
+        <div class="panel-heading"><div class="panel-label"><span class="dot blue"></span>ГОРОДСКИЕ СЕРВИСЫ</div><span class="pill" id="adaptation-badge">Стандартный интерфейс</span></div>
         <div id="demo-site" data-hh-site>
-          <div class="demo-header"><span class="demo-logo" aria-hidden="true">◈</span><strong>Город рядом</strong><span class="demo-header-caption">Личный кабинет жителя</span></div>
           <div class="demo-body">
-            <p class="eyebrow">СЕРВИС ОБРАЩЕНИЙ</p><h2 id="site-title">Чем мы можем помочь?</h2><p class="muted">Создайте обращение или продолжите работу с заявками.</p>
+            <p class="eyebrow">СЕРВИС ОБРАЩЕНИЙ</p><h2 id="site-title">Ваш город. Ваши решения.</h2><p class="muted">Сообщайте о проблемах, следите за обращениями и узнавайте, что происходит рядом.</p>
+            <div class="portal-hero-actions" data-portal-only><button type="button" class="button" data-jump="request-form">+ Новое обращение</button><button type="button" class="button" data-jump="my-requests">Мои обращения</button><button type="button" class="button" id="open-help">Как это работает?</button></div>
+            <div class="portal-stats" data-portal-only aria-label="Сводка обращений">
+              <button type="button" data-summary-filter="all"><strong id="total-requests">2</strong><span>Всего обращений →</span></button><button type="button" data-summary-filter="active"><strong id="active-requests">1</strong><span>В работе →</span></button><button type="button" data-summary-filter="done"><strong id="done-requests">1</strong><span>Решено →</span></button><button type="button" data-summary-filter="favorites"><strong id="favorite-requests">0</strong><span>В избранном →</span></button>
+            </div>
+            <section id="services" class="portal-section" data-portal-only aria-labelledby="services-title"><div class="portal-section-heading"><div><p class="eyebrow">БЫСТРЫЙ СТАРТ</p><h3 id="services-title">Что нужно улучшить?</h3></div><span class="subtle">Выберите тему обращения</span></div>
+              <div class="service-grid"><button type="button" data-service="lighting"><span aria-hidden="true">☀</span><strong>Освещение</strong><small>Фонари и пешеходные дорожки ↗</small></button><button type="button" data-service="roads"><span aria-hidden="true">↝</span><strong>Дороги и тротуары</strong><small>Ямы, разметка и переходы ↗</small></button><button type="button" data-service="transport"><span aria-hidden="true">↔</span><strong>Транспорт</strong><small>Остановки и расписание ↗</small></button><button type="button" data-service="waste"><span aria-hidden="true">♧</span><strong>Чистота во дворе</strong><small>Вывоз мусора и уборка ↗</small></button><button type="button" data-service="trees"><span aria-hidden="true">❋</span><strong>Парки и озеленение</strong><small>Деревья и места отдыха ↗</small></button><button type="button" data-service="other"><span aria-hidden="true">＋</span><strong>Другая проблема</strong><small>Расскажите, что случилось ↗</small></button></div>
+            </section>
             <form id="request-form">
+              <h3>Новое обращение</h3>
               <fieldset class="category-fieldset"><legend>Выберите тему</legend><div class="categories">
                 <label class="category"><input type="radio" name="category" value="Благоустройство" checked><span aria-hidden="true">♧</span><span>Благоустройство</span></label>
                 <label class="category"><input type="radio" name="category" value="Транспорт"><span aria-hidden="true">↔</span><span>Транспорт</span></label>
@@ -45,15 +57,22 @@
               <input id="request-title" name="title" placeholder="Например, освещение во дворе" maxlength="120" required autocomplete="off">
               <label class="field-label" for="request-text">Описание</label>
               <textarea id="request-text" name="description" rows="4" placeholder="Расскажите, что произошло и где нужна помощь…" maxlength="4000" required></textarea>
-              <div class="form-footer"><span class="subtle">Учебная форма · данные никуда не отправляются</span><button type="submit" class="button primary">Создать обращение <span aria-hidden="true">↗</span></button></div>
+              <div class="form-footer"><span class="subtle">Учебная форма · данные никуда не отправляются</span><div class="portal-form-actions"><button type="reset" class="button" data-portal-only>Очистить</button><button type="submit" class="button primary">Создать обращение <span aria-hidden="true">↗</span></button></div></div>
             </form>
-            <div class="requests-heading"><h3>Мои обращения</h3><span class="count-badge" id="request-count">2</span></div>
+            <div class="requests-heading" id="my-requests"><h3>Мои обращения</h3><span class="count-badge" id="request-count">2</span></div>
+            <div class="requests-toolbar" data-portal-only><label class="search-field"><span class="field-label">Поиск обращений</span><input type="search" id="request-search" placeholder="Тема или описание" maxlength="200"></label><button type="button" id="sort-requests" class="button" aria-label="Изменить порядок обращений">Сначала новые ↓</button></div>
+            <div class="request-filters" data-portal-only role="group" aria-label="Фильтр обращений"><button type="button" data-filter="all" aria-pressed="true">Все</button><button type="button" data-filter="active" aria-pressed="false">В работе</button><button type="button" data-filter="done" aria-pressed="false">Решённые</button><button type="button" data-filter="favorites" aria-pressed="false">Избранное</button><button type="button" id="reset-filters">Сбросить фильтры</button></div>
             <ul class="requests-list" id="requests-list">
               <li><span class="request-symbol" aria-hidden="true">↗</span><div><strong>Освещение на пешеходной дорожке</strong><span>Благоустройство · учебный пример</span></div><span class="request-status">В работе</span></li>
               <li><span class="request-symbol" aria-hidden="true">✓</span><div><strong>Расписание автобуса № 12</strong><span>Транспорт · учебный пример</span></div><span class="request-status done">Решено</span></li>
             </ul>
+            <p id="requests-empty" class="empty-state" data-portal-only hidden>Обращений по выбранным условиям пока нет.</p>
+            <p id="requests-visible" class="subtle" data-portal-only role="status"></p>
             <div id="request-feedback" class="request-feedback" role="status"></div>
-            <details class="precision-tasks" open><summary>Уточнение данных: точность ввода и выбора объекта</summary>
+            <section id="city-news" class="portal-section" data-portal-only aria-labelledby="news-title"><div class="portal-section-heading"><div><p class="eyebrow">ЖИЗНЬ РЯДОМ</p><h3 id="news-title">Городские новости</h3></div><button type="button" id="subscribe-news" class="button" aria-pressed="false">Следить за новостями</button></div><div class="news-grid"><article><span class="news-tag">Благоустройство</span><h4>Обновляем прогулочные дорожки</h4><p>В учебном квартале планируется ремонт покрытия и новые скамейки.</p><button type="button" class="button" data-news="park">Подробнее →</button></article><article><span class="news-tag">Транспорт</span><h4>Удобные остановки рядом с домом</h4><p>Посмотрите, какие изменения можно предложить для своего маршрута.</p><button type="button" class="button" data-news="bus">Подробнее →</button></article></div><p id="news-status" class="subtle" role="status">Учебные новости. Подписка действует только в этой вкладке.</p></section>
+            <section class="comfort-panel" id="comfort" aria-labelledby="comfort-title"><h3 id="comfort-title">Сайт подстраивается под вас</h3><p class="muted">Просто пользуйтесь сервисами. Через две минуты активной работы предложим более удобный интерфейс.</p><div class="comfort-actions"><button type="button" id="open-comfort" class="button">Настроить интерфейс</button><button type="button" id="user-revert" class="button" hidden>Вернуть стандартный вид</button></div><label class="consent-label"><input type="checkbox" id="collection-consent"><span>Разрешаю анализ и сохранение на сервере сайта числовых показателей работы с интерфейсом для статистики администратора. Текст и пароли не передаются. Снятие согласия удаляет этот числовой сеанс.</span></label><button type="button" id="retry-statistics-deletion" class="button" hidden>Повторить удаление статистики</button><p id="collection-status" class="subtle" role="status">Сбор показателей выключен. Настройки интерфейса доступны всегда.</p></section>
+            <dialog id="details-dialog" class="comfort-dialog" data-portal-only aria-labelledby="details-title"><form method="dialog"><h2 id="details-title"></h2><p id="details-description" class="details-description"></p><div class="comfort-actions"><button type="submit" class="button">Закрыть</button></div></form></dialog>
+            <details class="precision-tasks" data-admin-only><summary>Исследовательские задания администратора</summary>
               <p class="muted">Во время наблюдения выполните минимум три проверки текста и десять попыток выбора объекта. Здесь правильный ответ известен заранее; текст ответа сравнивается только в памяти.</p>
               <label class="field-label" for="reference-input">Наберите образец вручную, сохраняя регистр и знаки:</label>
               <p class="reference-text" id="reference-text">Улица Мира, дом 12, подъезд 3.</p>
@@ -68,31 +87,10 @@
           </div>
         </div>
       </section>
-
-      <aside class="observation-card" aria-labelledby="observe-title">
-        <div class="panel-label"><span class="dot" id="status-dot"></span>ПАНЕЛЬ HANDHELPER</div>
-        <h2 id="observe-title">Наблюдение</h2><p class="muted">Обычная работа с сайтом — без отдельных тестов и заданий.</p>
-        <div class="session-state"><span id="session-status" role="status">Ожидает вашего согласия</span><span class="timer" id="session-timer">00:00<span> / 60:00</span></span><progress id="session-progress" max="3600" value="0" aria-label="Прогресс часа активного наблюдения"></progress></div>
-        <div class="live-counts"><div><strong id="key-count">0</strong><span>нажатий клавиш</span></div><div><strong id="click-count">0</strong><span>кликов мышью</span></div></div>
-        <label class="consent-label"><input type="checkbox" id="collection-consent"><span>Разрешаю локальный сбор числовых показателей клавиатуры и мыши в рабочей области на один сеанс.</span></label>
-        <button id="start-session" class="button primary full" disabled>Начать час наблюдения <span aria-hidden="true">→</span></button>
-        <div class="session-actions"><button id="pause-session" class="button secondary" disabled>Пауза</button><button id="finish-session" class="button secondary" disabled>Завершить</button></div>
-        <details class="session-options"><summary>Расписание и сохранение</summary>
-          <p class="subtle">Расписание действует при открытой странице. Час активности должен поместиться в выбранное окно; иначе анализ сообщит о нехватке данных.</p>
-          <label class="field-label" for="window-start">Начало окна</label><input type="datetime-local" id="window-start">
-          <label class="field-label" for="window-end">Конец окна</label><input type="datetime-local" id="window-end">
-          <button type="button" id="arm-schedule" class="button secondary full">Запланировать наблюдение</button>
-          <button type="button" id="cancel-schedule" class="button secondary full" hidden>Отменить расписание</button><p id="schedule-status" role="status" class="subtle">Расписание не задано. Время — по часам вашего браузера.</p>
-          <label class="consent-label"><input type="checkbox" id="storage-consent"><span>Разрешаю сохранять числовой сеанс и модель в этом браузере для продолжения после перезагрузки.</span></label>
-          <button type="button" id="restore-session" class="button secondary full" hidden>Восстановить сохранённый сеанс</button><p id="storage-status" role="status" class="subtle">Без этого согласия всё остаётся только в памяти вкладки.</p>
-        </details>
-        <p class="privacy-note"><span aria-hidden="true">⌁</span> Текст и пароли не сохраняются. Для проверки образца ответ сравнивается локально и удаляется из поля; остаются числовые показатели.</p>
-        <details class="observation-help"><summary>Как считается час?</summary><p>Считается время в активной вкладке и окне. После 30 секунд без действий отсчёт приостанавливается. Явная пауза и время в другой вкладке не учитываются. Без согласия на сохранение перезагрузка удаляет сеанс.</p><p>Нужны минимум 200 нажатий, 100 удержаний, 100 интервалов, 30 кликов, 20 маршрутов, три проверки текста и десять попыток выбора объекта. Сенсорный ввод и IME не подходят для текущей модели.</p></details>
-      </aside>
     </div>
 
-    <section class="analysis-section" id="analysis" aria-labelledby="analysis-title">
-      <div class="section-title"><div><p class="eyebrow">ОТ НАБЛЮДЕНИЯ К ПОДДЕРЖКЕ</p><h2 id="analysis-title">Картина взаимодействия</h2></div><button id="export-report" class="button secondary" disabled>Скачать отчёт JSON <span aria-hidden="true">↓</span></button></div>
+    <section class="analysis-section" id="analysis" data-admin-only aria-labelledby="analysis-title">
+      <div class="section-title"><div><p class="eyebrow">АНАЛИТИКА АДМИНИСТРАТОРА</p><h2 id="analysis-title">Картина взаимодействия</h2></div><div class="portal-form-actions"><button id="show-live-analysis" class="button secondary">Текущие показатели</button><button id="export-report" class="button secondary" disabled>Скачать отчёт JSON <span aria-hidden="true">↓</span></button></div></div>
       <div class="analysis-grid">
         <div class="metrics-card">
           <div class="card-title"><h3>Показатели сеанса</h3><span class="pill" id="data-source">Нет данных</span></div>
@@ -110,9 +108,9 @@
         </div>
         <div class="result-card" id="result-card">
           <div class="panel-label">РЕЗУЛЬТАТ АНАЛИЗА</div><div class="result-icon" id="result-icon" aria-hidden="true">⌁</div>
-          <h3 id="result-title">Сначала — немного данных</h3><p id="result-description">После часа активной работы система сопоставит показатели с кластерами модели.</p>
+          <h3 id="result-title">Сначала — немного данных</h3><p id="result-description">Показатели появляются во время обычной работы с сервисами, если разрешён локальный анализ.</p>
           <ul id="quality-problems" class="quality-problems" hidden></ul>
-          <div id="adaptation-offer" hidden><p id="adaptation-description"></p><label class="consent-label"><input type="checkbox" id="adaptation-consent"><span>Разрешаю применить предложенную адаптацию к демонстрационному сайту.</span></label><button id="apply-adaptation" class="button primary full" disabled>Применить адаптацию</button></div>
+          <div id="adaptation-offer" hidden><p id="adaptation-description"></p><label class="consent-label"><input type="checkbox" id="adaptation-consent"><span>Разрешаю применить предложенную адаптацию к интерфейсу сайта.</span></label><button id="apply-adaptation" class="button primary full" disabled>Применить адаптацию</button></div>
           <button id="revert-adaptation" class="button secondary full" hidden>Вернуть стандартный интерфейс</button>
           <button id="export-adapted-site" class="button secondary full" hidden>Скачать адаптированный HTML</button>
           <span class="result-disclaimer">Кластер описывает взаимодействие. Он не устанавливает наличие или степень заболевания.</span>
@@ -120,18 +118,29 @@
       </div>
     </section>
 
-    <section class="model-section" id="model" aria-labelledby="model-title">
+    <section class="model-section" id="model" data-admin-only aria-labelledby="model-title">
       <div class="section-title"><div><p class="eyebrow">ПРОЗРАЧНАЯ ЛОГИКА</p><h2 id="model-title">Модель и проверка сценариев</h2></div><span class="pill" id="model-badge">K-means · 4 кластера · синтетические данные</span></div>
       <div class="model-grid">
-        <div class="demo-scenarios"><h3>Проверьте полный сценарий за минуту</h3><p class="muted">Эти кнопки используют готовые синтетические показатели. Они не собирают данные и не заменяют реальное наблюдение.</p><div class="scenario-buttons"><button class="scenario" data-scenario="0"><span class="scenario-number">01</span><strong>Обычный профиль</strong><span>Без адаптации ↗</span></button><button class="scenario" data-scenario="1"><span class="scenario-number">02</span><strong>Небольшие трудности</strong><span>Поддержка уровня 1 ↗</span></button><button class="scenario" data-scenario="2"><span class="scenario-number">03</span><strong>Заметные трудности</strong><span>Поддержка уровня 2 ↗</span></button><button class="scenario" data-scenario="3"><span class="scenario-number">04</span><strong>Выраженные трудности</strong><span>Поддержка уровня 3 ↗</span></button></div></div>
+        <div class="demo-scenarios"><h3>Проверьте полный сценарий за минуту</h3><p class="muted">Эти кнопки используют готовые синтетические показатели. Они не собирают данные и не заменяют реальное наблюдение.</p><p id="scenario-status" class="scenario-status" role="status">Выберите профиль: час наблюдения для синтетических сценариев не нужен.</p><div class="scenario-buttons" aria-describedby="scenario-status"><button class="scenario" data-scenario="0"><span class="scenario-number">01</span><strong>Обычный профиль</strong><span>Без адаптации ↗</span></button><button class="scenario" data-scenario="1"><span class="scenario-number">02</span><strong>Небольшие трудности</strong><span>Поддержка уровня 1 ↗</span></button><button class="scenario" data-scenario="2"><span class="scenario-number">03</span><strong>Заметные трудности</strong><span>Поддержка уровня 2 ↗</span></button><button class="scenario" data-scenario="3"><span class="scenario-number">04</span><strong>Выраженные трудности</strong><span>Поддержка уровня 3 ↗</span></button></div></div>
         <div class="training-card"><h3>Обучение и проверка модели</h3><p class="muted">Загрузите числовую выборку, размеченное исследование или ранее экспортированную модель v2. В исследовании участники обучения и проверки не пересекаются.</p><label class="file-label" for="training-file">Выбрать JSON <span aria-hidden="true">↑</span><input id="training-file" type="file" accept=".json,application/json"></label><p id="training-status" class="subtle" role="status">Сейчас: 400 синтетических сессий. Клиническая валидация отсутствует.</p><button class="text-button" id="download-training">Пример числовой выборки</button><button class="text-button" id="download-study">Пример размеченного исследования</button><button class="text-button" id="export-model">Скачать текущую модель</button><button class="text-button" id="export-evaluation" disabled>Скачать результаты проверки модели</button><p class="card-footnote">Метки исследования 0–3 задаёт автор по независимой оценке. Импорт и высокая точность на одной выборке не означают клиническую валидацию.</p></div>
       </div>
     </section>
-    <section class="research-export"><h3>Сбор выборки для исследования</h3><p class="muted">Экспортируйте завершённое реальное наблюдение с достаточными данными. Используйте случайный код участника, без ФИО. Метку назначает специалист отдельно; программа её не придумывает.</p><label class="field-label" for="participant-id">Обезличенный код участника</label><input id="participant-id" type="text" maxlength="64" pattern="[a-zA-Z0-9_-]+" placeholder="Например, participant_001"><button type="button" id="export-participant" class="button secondary" disabled>Скачать сессию для исследования</button></section>
-    <div class="data-footer"><p><strong>Ваши данные — под вашим контролем.</strong><br><span>Нет внешних запросов. Сохранение числовых показателей в браузере включается отдельным согласием.</span></p><button id="delete-data" class="button danger">Остановить и удалить данные</button></div>
+    <section class="research-export" data-admin-only><h3>Сбор выборки для исследования</h3><p class="muted">Экспортируйте завершённое реальное наблюдение с достаточными данными. Используйте случайный код участника, без ФИО. Метку назначает специалист отдельно; программа её не придумывает.</p><label class="field-label" for="participant-id">Обезличенный код участника</label><input id="participant-id" type="text" maxlength="64" pattern="[a-zA-Z0-9_-]+" placeholder="Например, participant_001"><button type="button" id="export-participant" class="button secondary" disabled>Скачать сессию для исследования</button></section>
+    <div class="data-footer" data-admin-only><p><strong>Ваши данные — под вашим контролем.</strong><br><span>Нет внешних запросов. Сохранение числовой статистики на сервере включается согласием в настройках.</span></p><button id="delete-data" class="button danger">Остановить и удалить данные</button></div>
+    <dialog id="comfort-dialog" class="comfort-dialog" aria-labelledby="comfort-dialog-title" aria-describedby="comfort-dialog-description">
+      <form method="dialog">
+        <p class="eyebrow">БОЛЬШЕ КОМФОРТА</p>
+        <h2 id="comfort-dialog-title">Хотите адаптировать интерфейс?</h2>
+        <p id="comfort-dialog-description">Можно увеличить текст, кнопки и расстояния между элементами. Выберите удобный вариант — стандартный вид можно вернуть в любой момент.</p>
+        <label class="field-label" for="comfort-level">Вариант интерфейса</label>
+        <select id="comfort-level"><option value="1">Немного крупнее</option><option value="2">Крупные элементы, одна колонка</option><option value="3">Максимально крупные элементы, без анимаций</option></select>
+        <div class="comfort-actions"><button type="submit" id="accept-comfort" value="accept" class="button primary">Да, адаптировать</button><button type="submit" value="decline" class="button secondary" autofocus>Оставить как есть</button></div>
+      </form>
+    </dialog>
     <p id="app-message" class="app-message" role="status" aria-live="polite"></p>
+    <dialog id="admin-login-dialog" class="comfort-dialog" aria-labelledby="admin-login-title"><form id="admin-login-form"><p class="eyebrow">ДОСТУП АДМИНИСТРАТОРА</p><h2 id="admin-login-title">Вход в кабинет</h2><label class="field-label" for="admin-username">Логин</label><input id="admin-username" name="username" autocomplete="username" value="admin" maxlength="64" required><label class="field-label" for="admin-password">Пароль</label><input id="admin-password" name="password" type="password" autocomplete="current-password" maxlength="256" required><p id="admin-login-error" class="login-error" role="alert"></p><div class="comfort-actions"><button type="submit" id="submit-admin-login" class="button primary">Войти</button><button type="button" id="close-admin-login" class="button secondary">Отмена</button></div></form></dialog>
   </main>
-  <footer class="footer"><a class="brand" href="#">HandHelper<span class="footer-dot">.</span></a><span>Комфортный интерфейс начинается с внимания к человеку.</span><a href="README.md">О проекте и ограничениях ↗</a></footer>
+  <footer class="footer"><a class="brand" href="#">Город рядом<span class="footer-dot">.</span></a><span>Комфортный интерфейс начинается с внимания к человеку.</span><a href="README.md">О проекте и ограничениях ↗</a></footer>
   <noscript>Для работы прототипа необходимо разрешить JavaScript в браузере.</noscript>
 </body>
 </html>

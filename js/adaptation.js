@@ -16,9 +16,16 @@
       if (!this.level) throw new Error('Сначала примените адаптацию с согласия пользователя.');
       const clone = this.root.cloneNode(true);
       clone.querySelectorAll('.precision-tasks').forEach(el => el.remove());
+      clone.querySelectorAll('[data-portal-only], #comfort').forEach(el => el.remove());
       clone.querySelectorAll('input:not([type="radio"]), textarea').forEach(el => { el.value = ''; el.removeAttribute('value'); if (el.tagName === 'TEXTAREA') el.textContent = ''; });
       const list = clone.querySelector('#requests-list');
-      if (list) Array.from(list.children).slice(0, Math.max(0, list.children.length - 2)).forEach(el => el.remove());
+      if (list) {
+        list.replaceChildren();
+        for (const title of ['Освещение на пешеходной дорожке', 'Расписание автобуса № 12']) {
+          const item = document.createElement('li'); const label = document.createElement('strong');
+          label.textContent = title; item.append(label); list.append(item);
+        }
+      }
       const count = clone.querySelector('#request-count'); if (count) count.textContent = '2';
       const feedback = clone.querySelector('#request-feedback'); if (feedback) feedback.replaceChildren();
       const size = [38, 44, 52, 60][this.level], font = [13, 14, 16, 18][this.level];

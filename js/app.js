@@ -2,56 +2,37 @@
   'use strict';
   const HH = window.HandHelper;
   const $ = id => document.getElementById(id);
+  let isAdmin = document.documentElement.dataset.role === 'admin';
+  const comfortClock = new HH.ActivityClock(120000);
+  let comfortHandled = false;
+  let comfortTrigger = null;
   const demoModel = HH.fit(HH.syntheticRows(), { synthetic: true });
   let model = demoModel;
   let report = null;
   let result = null;
   let resultModel = null;
   let messageTimer;
-  let requestNumber = 2;
-  let undoTimer;
+
   let importGeneration = 0;
   let evaluation = null;
-  let schedule = null;
-  let windowEnd = null;
-  let savedAvailable = false;
-  let browserStorage = null;
-  try { browserStorage = window.localStorage; } catch (_) { /* Disabled storage remains optional. */ }
-  const store = new HH.LocalStore(browserStorage, new URLSearchParams(location.search).has('test') ? 'handhelper.test.v2' : 'handhelper.v2');
+
   const adaptation = new HH.Adaptation($('demo-site'));
-  const collector = new HH.Collector($('demo-site'), completedReport => {
-    report = completedReport; analyze(); updateControls();
-    schedule = null; windowEnd = null; persist();
-    $('schedule-status').textContent = 'Наблюдение завершено.';
-    updateControls();
-    announce(collector.completed ? 'Час наблюдения завершён. Результат доступен в разделе анализа.' : 'Временное окно закончилось. Показаны результат и достаточность данных.');
-  });
+  const collector = new HH.Collector($('demo-site'), data => { report = data; analyze(); updateControls(); });
+  HH.statistics.setProvider(() => collector.report());
   function announce(text) {
     clearTimeout(messageTimer); $('app-message').textContent = text;
     messageTimer = setTimeout(() => { $('app-message').textContent = ''; }, 7000);
   }
   function updateControls() {
-    const running = collector.running;
-    $('start-session').disabled = running || !!schedule || !$('collection-consent').checked;
-    $('pause-session').disabled = !running;
-    $('finish-session').disabled = !running;
-    $('pause-session').textContent = collector.paused ? 'Продолжить' : 'Пауза';
-    document.querySelectorAll('[data-scenario]').forEach(button => { button.disabled = running || !!schedule; });
-    $('training-file').disabled = running || !!schedule;
-    $('arm-schedule').disabled = running || !!schedule || !$('collection-consent').checked;
-    $('cancel-schedule').hidden = !schedule;
-    $('window-start').disabled = running || !!schedule;
-    $('window-end').disabled = running || !!schedule;
-    $('restore-session').disabled = running || !!schedule;
+    $('collection-status').textContent = collector.running ? 'Локальный анализ включён автоматически. Снимите согласие, чтобы остановить его и удалить показатели.' : collector.completed ? 'Локальный анализ завершён. Настройки интерфейса доступны всегда.' : 'Сбор показателей выключен. Настройки интерфейса доступны всегда.';
     $('export-evaluation').disabled = !evaluation;
     $('export-participant').disabled = !report || report.source !== 'observation' || HH.quality(report).length > 0;
     $('export-report').disabled = !report;
     $('apply-adaptation').disabled = !$('adaptation-consent').checked || !result || result.status !== 'ok' || result.level === 0;
-    $('status-dot').classList.toggle('recording', running && !collector.paused);
-    if (running) $('session-status').textContent = collector.paused ? 'Наблюдение на паузе' : !collector.clock.enabled ? 'Ожидание активного окна' : 'Идёт наблюдение';
-    else if (collector.completed) $('session-status').textContent = 'Час наблюдения завершён';
-    else if (collector.clock.activeMs > 0 || collector.counts.keydowns || collector.counts.clicks) $('session-status').textContent = 'Наблюдение завершено досрочно';
-    else $('session-status').textContent = $('collection-consent').checked ? 'Можно начать наблюдение' : 'Ожидает вашего согласия';
+    const statisticsState = HH.statistics.state();
+    const messages = { connecting: ' Подключаем статистику сайта…', ready: ' Числовые показатели сохраняются для администратора.', error: ' Статистика временно не сохраняется: сервер недоступен.', offline: ' Для сохранения статистики запустите сайт через локальный сервер.', deleting: ' Удаляем числовой сеанс с сервера…', 'delete-error': ' Не удалось удалить числовой сеанс с сервера. Повторите удаление.' };
+    $('collection-status').textContent += messages[statisticsState] || '';
+    $('retry-statistics-deletion').hidden = statisticsState !== 'delete-error';
   }
   function renderMetrics(data) {
     const f = data && data.features;
@@ -75,11 +56,13 @@
     adaptation.revert(); $('adaptation-badge').textContent = 'Стандартный интерфейс';
     $('revert-adaptation').hidden = true;
     $('export-adapted-site').hidden = true;
+    $('user-revert').hidden = true;
   }
-  function clearResult() {
-    result = null; resultModel = null; revert();
+  function clearResult(preserveAdaptation = true) {
+    result = null; resultModel = null;
+    if (!preserveAdaptation) revert();
     $('result-title').textContent = 'Сначала — немного данных';
-    $('result-description').textContent = 'После часа активной работы система сопоставит показатели с кластерами модели.';
+    $('result-description').textContent = 'Показатели появляются во время обычной работы с сервисами, если разрешён локальный анализ.';
     $('result-icon').textContent = '⌁';
     $('adaptation-offer').hidden = true; $('adaptation-consent').checked = false;
     $('quality-problems').replaceChildren(); $('quality-problems').hidden = true;
@@ -91,7 +74,7 @@
     $('result-title').textContent = result.label;
     $('data-source').textContent = report.source === 'synthetic' ? 'Синтетический сценарий' : 'Реальное наблюдение';
     if (result.status === 'insufficient') {
-      $('result-description').textContent = 'Система воздержалась от вывода. Интерфейс останется стандартным. Для новой попытки начните новый сеанс.';
+      $('result-description').textContent = 'Данных пока недостаточно для вывода модели. Продолжайте пользоваться сайтом или настройте интерфейс самостоятельно.';
       $('quality-problems').hidden = false;
       result.problems.forEach(problem => { const li = document.createElement('li'); li.textContent = problem; $('quality-problems').append(li); });
     } else if (result.status === 'out_of_distribution' || result.status === 'unmapped') {
@@ -109,45 +92,85 @@
     renderMetrics(report); updateControls();
   }
   $('collection-consent').addEventListener('change', () => {
-    if (!$('collection-consent').checked) {
-      importGeneration++;
-      collector.stop(); collector.reset(); report = null; clearResult(); renderMetrics(null);
-      cancelSchedule(); eraseSaved(); $('storage-consent').checked = false;
-      $('data-source').textContent = 'Нет данных';
-      announce('Согласие отозвано. Наблюдение остановлено, показатели удалены, адаптация отменена.');
+    if ($('collection-consent').checked) collector.start();
+    else {
+      collector.stop(); collector.reset();
+      if (report && report.source === 'observation') { report = null; clearResult(); renderMetrics(null); $('data-source').textContent = 'Нет данных'; }
     }
-    updateControls(); updateLive();
+    HH.statistics.consent($('collection-consent').checked);
+    updateControls();
   });
-  function startObservation(checkpoint = null, scheduled = false) {
-    if (!$('collection-consent').checked || collector.running) return;
-    importGeneration++;
-    savedAvailable = false;
-    if (!scheduled) { schedule = null; windowEnd = null; }
-    report = null; clearResult(); collector.start(checkpoint);
-    collector.deadline = windowEnd;
-    $('data-source').textContent = 'Реальное наблюдение';
-    updateControls(); updateLive();
-    announce('Наблюдение началось. Работайте с демонстрационным сайтом в обычном режиме.');
-    persist();
+  window.addEventListener('hh:statistics', updateControls);
+  $('retry-statistics-deletion').addEventListener('click', HH.statistics.retryDeletion);
+  window.addEventListener('hh:rolechange', event => { isAdmin = event.detail.isAdmin; syncComfortClock(); });
+  setInterval(() => {
+    if (isAdmin && collector.running && (!report || report.source !== 'synthetic')) {
+      report = collector.report(); renderMetrics(report);
+      $('data-source').textContent = 'Работа с сайтом'; updateControls();
+    }
+  }, 1000);
+  function applySupport(level) {
+    adaptation.apply(level, true);
+    HH.statistics.record('level' + level);
+    $('adaptation-badge').textContent = 'Адаптация · уровень ' + level;
+    $('revert-adaptation').hidden = false;
+    $('export-adapted-site').hidden = false;
+    $('user-revert').hidden = false;
+    announce(isAdmin ? 'Адаптация уровня ' + level + ' применена. Её можно отменить в разделе анализа.' : 'Адаптация применена. Стандартный вид можно вернуть в настройках интерфейса.');
   }
-  $('start-session').addEventListener('click', () => startObservation());
-  $('pause-session').addEventListener('click', () => { collector.pause(!collector.paused); updateControls(); persist(); });
-  $('finish-session').addEventListener('click', () => {
-    collector.stop(); report = collector.report(); cancelSchedule(); analyze(); updateControls(); persist();
+  let comfortAutomatic = false;
+  function openComfort(automatic = false) {
+    if ($('comfort-dialog').open) return;
+    comfortHandled = true;
+    comfortAutomatic = automatic === true;
+    if (comfortAutomatic) HH.statistics.record('offerShown');
+    comfortTrigger = document.activeElement;
+    $('comfort-level').value = String(adaptation.level || 1);
+    $('comfort-dialog').returnValue = '';
+    $('comfort-dialog').showModal();
+  }
+  function syncComfortClock() {
+    const enabled = !isAdmin && document.visibilityState === 'visible' && document.hasFocus();
+    if (comfortClock.enabled !== enabled) comfortClock.setEnabled(enabled, performance.now());
+  }
+  function updateComfort() {
+    if (isAdmin || comfortHandled) return;
+    syncComfortClock();
+    comfortClock.tick(performance.now());
+    if (comfortClock.complete && !document.querySelector('dialog[open]')) openComfort(true);
+  }
+  // Only elapsed active time is used for this offer, independently of collection consent.
+  // No keyboard/mouse samples or inferred support levels are needed to try an interface.
+  ['pointerdown', 'pointermove', 'keydown', 'input', 'wheel'].forEach(type => {
+    $('demo-site').addEventListener(type, () => {
+      if (isAdmin || comfortHandled) return;
+      syncComfortClock();
+      comfortClock.activity(performance.now());
+      updateComfort();
+    }, { passive: true });
   });
-  function updateLive() {
-    const data = collector.report();
-    const seconds = Math.floor(data.activeSeconds);
-    $('session-timer').replaceChildren(document.createTextNode(String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0')));
-    const total = document.createElement('span'); total.textContent = ' / 60:00'; $('session-timer').append(total);
-    $('session-progress').value = seconds;
-    $('key-count').textContent = String(data.counts.keydowns);
-    $('click-count').textContent = String(data.counts.clicks);
-    if (collector.running) { renderMetrics(data); updateControls(); }
-  }
-  setInterval(updateLive, 1000);
+  document.addEventListener('visibilitychange', syncComfortClock);
+  window.addEventListener('focus', syncComfortClock);
+  window.addEventListener('blur', () => comfortClock.setEnabled(false, performance.now()));
+  syncComfortClock();
+  setInterval(updateComfort, 1000);
+  $('open-comfort').addEventListener('click', openComfort);
+  $('comfort-dialog').querySelector('form').addEventListener('submit', event => {
+    if (event.submitter && event.submitter.value === 'accept') {
+      applySupport(Number($('comfort-level').value));
+      if (comfortAutomatic) HH.statistics.record('offerAccepted');
+    }
+  });
+  $('comfort-dialog').addEventListener('close', () => {
+    if (comfortAutomatic && $('comfort-dialog').returnValue !== 'accept') HH.statistics.record('offerDeclined');
+    HH.statistics.flush(); comfortAutomatic = false;
+    if (comfortTrigger && comfortTrigger.isConnected) comfortTrigger.focus({ preventScroll: true });
+  });
+  $('user-revert').addEventListener('click', () => {
+    revert(); $('adaptation-consent').checked = false;
+    updateControls(); announce('Восстановлен стандартный интерфейс.');
+  });
   document.querySelectorAll('[data-scenario]').forEach(button => button.addEventListener('click', () => {
-    if (collector.running || schedule) return;
     report = HH.exampleReport(Number(button.dataset.scenario)); analyze();
     announce('Показан синтетический сценарий. Адаптация потребует отдельного согласия.');
     $('analysis').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
@@ -158,11 +181,7 @@
   });
   $('apply-adaptation').addEventListener('click', () => {
     if (!result || result.status !== 'ok' || result.level === 0 || !$('adaptation-consent').checked) return;
-    adaptation.apply(result.level, true);
-    $('adaptation-badge').textContent = 'Адаптация · уровень ' + result.level;
-    $('revert-adaptation').hidden = false;
-    $('export-adapted-site').hidden = false;
-    announce('Адаптация уровня ' + result.level + ' применена. Её можно отменить в любой момент.');
+    applySupport(result.level);
   });
   $('revert-adaptation').addEventListener('click', () => { revert(); $('adaptation-consent').checked = false; updateControls(); announce('Восстановлен стандартный интерфейс.'); });
   function download(name, data, type = 'application/json') {
@@ -181,12 +200,12 @@
   $('export-evaluation').addEventListener('click', () => { if (evaluation) download('handhelper-evaluation.json', evaluation); });
   $('export-adapted-site').addEventListener('click', () => { if (adaptation.level) download('city-adapted.html', adaptation.exportHTML(), 'text/html'); });
   $('training-file').addEventListener('change', async event => {
-    const file = event.target.files[0]; if (!file || collector.running || schedule) return;
+    const file = event.target.files[0]; if (!file) return;
     const generation = ++importGeneration;
     try {
       if (file.size > 4 * 1024 * 1024) throw new Error('Максимальный размер файла — 4 МБ.');
       const parsed = JSON.parse(await file.text());
-      if (generation !== importGeneration || collector.running) return;
+      if (generation !== importGeneration) return;
       let candidate, nextEvaluation = null;
       if (parsed.kind === 'handhelper-model') candidate = HH.validateModel(parsed.model);
       else if (Array.isArray(parsed.rows) && parsed.rows[0] && parsed.rows[0].participantId !== undefined) {
@@ -202,151 +221,42 @@
       if (evaluation) $('training-status').textContent += ' Проверка: ' + evaluation.testParticipants + ' участников; сбалансированная точность ' + (100 * evaluation.balancedAccuracy).toFixed(1) + '%, покрытие ' + (100 * evaluation.coverage).toFixed(1) + '%. Отказы учитываются как ошибки.';
       if (report) analyze();
       announce('Модель обновлена. Синтетические сценарии по-прежнему используют отдельную демонстрационную модель.');
-      updateControls(); persist();
+      updateControls();
     } catch (error) { $('training-status').textContent = 'Файл не принят: ' + error.message; announce('Обучение не выполнено. Предыдущая модель сохранена.'); }
     finally { event.target.value = ''; }
   });
   $('delete-data').addEventListener('click', () => {
-    importGeneration++;
-    collector.stop(); collector.reset(); report = null; model = demoModel;
-    evaluation = null; cancelSchedule(); eraseSaved(); $('storage-consent').checked = false;
-    clearResult(); renderMetrics(null); $('collection-consent').checked = false;
+    HH.statistics.consent(false);
+    importGeneration++; collector.stop(); collector.reset(); report = null; model = demoModel; evaluation = null;
+    clearResult(false); renderMetrics(null); $('collection-consent').checked = false;
     $('data-source').textContent = 'Нет данных'; $('training-file').value = '';
     $('model-badge').textContent = 'K-means · 4 кластера · синтетические данные';
     $('training-status').textContent = 'Сейчас: 400 синтетических сессий. Клиническая валидация отсутствует.';
-    updateLive(); updateControls(); announce('Наблюдение остановлено. Показатели и импортированная модель удалены, адаптация отменена.');
+    updateControls(); announce('Числовые показатели и импортированная модель удалены.');
   });
-  $('request-form').addEventListener('submit', event => {
-    event.preventDefault();
-    const form = event.target;
-    const title = form.elements.title.value.trim();
-    if (!title || !form.elements.description.value.trim()) { announce('Заполните тему и описание обращения.'); return; }
-    const category = form.elements.category.value;
-    const li = document.createElement('li');
-    const icon = document.createElement('span'); icon.className = 'request-symbol'; icon.textContent = '↗'; icon.setAttribute('aria-hidden', 'true');
-    const detail = document.createElement('div');
-    const strong = document.createElement('strong'); strong.textContent = title;
-    const subtitle = document.createElement('span'); subtitle.textContent = category + ' · локальный пример'; detail.append(strong, subtitle);
-    const status = document.createElement('span'); status.className = 'request-status'; status.textContent = 'Создано';
-    li.append(icon, detail, status); $('requests-list').prepend(li);
-    requestNumber++; $('request-count').textContent = String(requestNumber);
-    clearTimeout(undoTimer);
-    const previousTitle = form.elements.title.value; const previousDescription = form.elements.description.value;
-    form.reset();
-    const undo = document.createElement('button'); undo.type = 'button'; undo.textContent = 'Отменить';
-    $('request-feedback').replaceChildren(document.createTextNode('Учебное обращение создано.'), undo);
-    undo.addEventListener('click', () => {
-      clearTimeout(undoTimer); li.remove(); requestNumber--; $('request-count').textContent = String(requestNumber);
-      form.elements.title.value = previousTitle; form.elements.description.value = previousDescription;
-      form.querySelectorAll('[name="category"]').forEach(input => { input.checked = input.value === category; });
-      $('request-feedback').textContent = 'Действие отменено. Текст восстановлен.';
-    }, { once: true });
-    undoTimer = setTimeout(() => { $('request-feedback').textContent = ''; }, 20000);
-  });
-  function eraseSaved() {
-    savedAvailable = false;
-    try { store.clear(); $('storage-status').textContent = 'Сохранённые показатели удалены.'; }
-    catch (_) { $('storage-status').textContent = 'Браузер запретил доступ к хранилищу. Удалите данные сайта в настройках браузера.'; }
-    $('restore-session').hidden = true;
-  }
-  function persist() {
-    if (savedAvailable || !$('storage-consent').checked || !$('collection-consent').checked) return;
-    try {
-      store.write({ version: 2, checkpoint: collector.checkpoint(), model, wasRunning: collector.running, windowEnd, waitingSchedule: schedule && !schedule.started ? { start: schedule.start, end: schedule.end } : null, savedAt: Date.now() }, true);
-      $('storage-status').textContent = 'Числовой сеанс и модель сохранены в этом браузере. Время отсутствия не учитывается.';
-      $('restore-session').hidden = collector.running || !!schedule;
-    } catch (error) { $('storage-status').textContent = 'Не удалось сохранить: ' + error.message; }
-  }
-  $('storage-consent').addEventListener('change', () => {
-    if ($('storage-consent').checked) {
-      if (savedAvailable) $('storage-status').textContent = 'Выберите восстановление сохранённого сеанса или начните новый. Существующие данные пока не перезаписываются.';
-      else if (!$('collection-consent').checked) $('storage-status').textContent = 'Сначала дайте согласие на сбор; сохранение начнётся после запуска.';
-      else persist();
-    } else eraseSaved();
-  });
-  $('restore-session').addEventListener('click', () => {
-    if (collector.running || schedule) return;
-    if (!$('collection-consent').checked || !$('storage-consent').checked) { announce('Для восстановления отметьте согласия на сбор и сохранение.'); return; }
-    try {
-      const saved = store.read(); if (!saved) throw new Error('Сохранённого сеанса нет.');
-      const restoredModel = HH.validateModel(saved.model);
-      const probe = new HH.Collector($('demo-site')); probe.restore(saved.checkpoint);
-      savedAvailable = false;
-      model = restoredModel; evaluation = null; clearResult();
-      windowEnd = Number.isFinite(saved.windowEnd) ? saved.windowEnd : null;
-      if (saved.waitingSchedule && saved.waitingSchedule.end > Date.now()) {
-        collector.reset(); collector.restore(saved.checkpoint);
-        schedule = new HH.WindowSchedule(Math.max(Date.now(), saved.waitingSchedule.start), saved.waitingSchedule.end);
-        windowEnd = schedule.end; $('schedule-status').textContent = 'Ожидание восстановленного временного окна.';
-      } else if (saved.wasRunning && saved.checkpoint.activeMs < 3600000 && (windowEnd === null || windowEnd > Date.now())) startObservation(saved.checkpoint, true);
-      else {
-        collector.reset(); collector.restore(saved.checkpoint); collector.completed = collector.clock.complete;
-        report = collector.report(); analyze();
-      }
-      $('model-badge').textContent = 'K-means · 4 кластера · ' + (model.synthetic ? 'синтетические данные' : 'импортированные данные');
-      $('training-status').textContent = 'Восстановлена модель: ' + model.sampleCount + ' сессий. Клиническая валидация отсутствует.';
-      updateLive(); updateControls(); announce('Числовой сеанс восстановлен. Текст, прошлые клавиши и координаты не восстанавливаются.');
-    } catch (error) { announce('Сеанс не восстановлен: ' + error.message); }
-  });
-  function cancelSchedule() {
-    schedule = null; windowEnd = null; collector.deadline = null;
-    $('schedule-status').textContent = 'Расписание не задано. Время — по часам вашего браузера.';
-    $('cancel-schedule').hidden = true;
-  }
-  $('arm-schedule').addEventListener('click', () => {
-    if (collector.running || schedule || !$('collection-consent').checked) return;
-    try {
-      schedule = new HH.WindowSchedule(new Date($('window-start').value).getTime(), new Date($('window-end').value).getTime());
-      savedAvailable = false;
-      windowEnd = schedule.end;
-      $('schedule-status').textContent = 'Ожидание: ' + new Date(schedule.start).toLocaleString() + ' — ' + new Date(schedule.end).toLocaleString() + '. Страница должна оставаться открытой.';
-      updateControls(); persist();
-    } catch (error) { announce(error.message); }
-  });
-  $('cancel-schedule').addEventListener('click', () => {
-    const running = collector.running;
-    if (running) { collector.stop(); report = collector.report(); }
-    cancelSchedule(); if (running) analyze(); updateControls(); persist();
-  });
-  setInterval(() => {
-    if (!schedule) return;
-    const action = schedule.poll(Date.now());
-    if (action === 'start') {
-      $('schedule-status').textContent = 'Наблюдение в заданном окне до ' + new Date(schedule.end).toLocaleString();
-      startObservation(null, true);
-    } else if (action === 'finish') {
-      if (collector.running) { collector.stop(); report = collector.report(); analyze(); }
-      cancelSchedule(); updateControls(); persist();
-    } else if (action === 'expired') {
-      cancelSchedule(); updateControls(); announce('Временное окно пропущено. Наблюдение не проводилось.');
-    }
-  }, 1000);
-  setInterval(persist, 5000);
-  try {
-    if (store.read()) { savedAvailable = true; $('restore-session').hidden = false; $('storage-status').textContent = 'Есть сохранённый сеанс. Для восстановления нужны согласия и нажатие кнопки; сбор автоматически не начинается.'; }
-  } catch (error) { $('storage-status').textContent = 'Сохранение недоступно или повреждено: ' + error.message; }
+  $('show-live-analysis').addEventListener('click', () => { report = collector.report(); analyze(); });
   const references = ['Улица Мира, дом 12, подъезд 3.', 'Прошу проверить освещение рядом с парком.', 'Обращение принято в работу, номер 204.'];
   let referenceIndex = 0, taskAssisted = false, selectedTarget = 0;
   $('reference-input').addEventListener('beforeinput', event => { if (['insertFromPaste', 'insertFromDrop', 'insertReplacementText', 'insertCompositionText'].includes(event.inputType)) taskAssisted = true; });
   $('reference-input').addEventListener('paste', () => { taskAssisted = true; });
   $('reference-input').addEventListener('drop', () => { taskAssisted = true; });
   $('check-reference').addEventListener('click', event => {
-    if (!collector.running || collector.paused) { announce('Сначала начните или продолжите наблюдение.'); return; }
+    if (!collector.running || collector.paused) { announce('Разрешите локальный анализ в настройках сайта.'); return; }
     if (taskAssisted) { $('reference-feedback').textContent = 'Образец не учтён: обнаружена вставка, подсказка или IME. Для этой проверки введите текст вручную.'; $('reference-input').value = ''; taskAssisted = false; return; }
     const task = collector.recordTextTask(references[referenceIndex], $('reference-input').value, event);
     if (!task) return;
     $('reference-feedback').textContent = 'Проверок: ' + collector.counts.textTasks + '. Исправлений для совпадения с образцом: ' + task.edits + ' / ' + task.referenceLength + '.';
     $('reference-input').value = ''; referenceIndex = (referenceIndex + 1) % references.length; $('reference-text').textContent = references[referenceIndex];
-    persist();
+
   });
   $('target-board').addEventListener('click', event => {
     const target = event.target.closest('[data-target]');
-    if (!collector.running || collector.paused) { announce('Для измерения выбора объекта начните наблюдение.'); return; }
+    if (!collector.running || collector.paused) { announce('Разрешите локальный анализ в настройках сайта.'); return; }
     const hit = !!target && Number(target.dataset.target) === selectedTarget;
     if (!collector.recordTarget(hit, event)) return;
     $('target-feedback').textContent = (hit ? 'Верно. ' : 'Выбрана другая цель или фон. ') + 'Попыток: ' + collector.counts.targetAttempts + '; ошибок: ' + collector.counts.targetMisses + '.';
     if (hit) { selectedTarget = (selectedTarget + 1 + Math.floor(Math.random() * 5)) % 6; $('target-name').textContent = $('target-board').querySelector('[data-target="' + selectedTarget + '"]').textContent; }
-    persist();
+
   });
   $('export-participant').addEventListener('click', () => {
     if (!report || report.source !== 'observation' || HH.quality(report).length) return;
@@ -354,15 +264,12 @@
     if (!/^[a-zA-Z0-9_-]{1,64}$/.test(participantId)) { announce('Укажите обезличенный код: латиница, цифры, дефис или подчёркивание, до 64 символов.'); return; }
     download('handhelper-session-' + participantId + '.json', { version: 2, source: 'observation', participantId, severity: null, features: report.features, activeSeconds: report.activeSeconds, counts: report.counts, notice: 'severity заполняется после независимой оценки. Этот файл — одна сессия, не обучающая выборка.' });
   });
-  window.addEventListener('pagehide', () => { persist(); collector.stop(); });
+  window.addEventListener('pagehide', () => { comfortClock.setEnabled(false, performance.now()); collector.stop(); });
   window.addEventListener('pageshow', event => {
-    if (!event.persisted) return;
-    collector.stop(); cancelSchedule(); report = null; clearResult();
-    $('collection-consent').checked = false; $('storage-consent').checked = false;
-    try { savedAvailable = !!store.read(); } catch (_) { savedAvailable = false; }
-    $('restore-session').hidden = !savedAvailable;
-    $('data-source').textContent = 'Нет данных'; renderMetrics(null); updateLive(); updateControls();
-    announce('Страница возвращена из истории. Для продолжения нужны согласие и восстановление сеанса.');
+    syncComfortClock(); if (!event.persisted) return;
+    collector.stop(); collector.reset(); $('collection-consent').checked = false;
+    HH.statistics.suspend();
+    report = null; clearResult(); renderMetrics(null); $('data-source').textContent = 'Нет данных'; updateControls();
   });
   updateControls();
 })();

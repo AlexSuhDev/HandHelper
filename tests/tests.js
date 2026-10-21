@@ -1,7 +1,7 @@
 (async function () {
   'use strict';
   const HH = globalThis.HandHelper;
-  const lines = []; let failed = 0;
+  const lines = []; let failed = 0, skipped = 0;
   const assert = (condition, message = 'Assertion failed') => { if (!condition) throw new Error(message); };
   const near = (a, b, eps = 1e-8) => assert(Math.abs(a - b) < eps, a + ' != ' + b);
   function test(name, fn) { try { fn(); lines.push('PASS ' + name); } catch (error) { failed++; lines.push('FAIL ' + name + ': ' + error.message); } }
@@ -72,57 +72,188 @@
     const root = document.createElement('div'); root.innerHTML = '<form id="request-form"><input name="title" value="PRIVATE_TITLE"><textarea name="description">PRIVATE_DESCRIPTION</textarea></form><div class="precision-tasks">PRIVATE_TASK</div><ul id="requests-list"><li>PRIVATE_REQUEST</li><li>Example 1</li><li>Example 2</li></ul><span id="request-count">3</span><div id="request-feedback"></div>';
     const a = new HH.Adaptation(root); a.apply(2, true); const html = a.exportHTML(); assert(html.startsWith('<!doctype html>')); assert(html.includes('<style>')); assert(html.includes('data-hh-support="2"')); assert(!html.includes('PRIVATE_')); assert(!html.includes('src="js/'));
   });
-  // Exercise the actual app through its public controls.
-  const frame = document.createElement('iframe'); frame.src = '../index.html?test=1'; frame.title = 'App integration fixture'; document.body.append(frame);
+  // Exercise the combined portal through its public controls.
+  const frame = document.createElement('iframe'); frame.title = 'Portal integration fixture'; document.body.append(frame);
+  async function load(url) {
+    await new Promise((resolve, reject) => { const timeout = setTimeout(() => reject(new Error('App load timeout')), 10000); frame.onload = () => { clearTimeout(timeout); resolve(); }; frame.onerror = reject; frame.src = url; });
+  }
+  async function waitFor(predicate) {
+    for (let attempt = 0; attempt < 100; attempt++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
+    throw new Error('Timed out waiting for application state');
+  }
   try {
-    await new Promise((resolve, reject) => { frame.onload = resolve; frame.onerror = () => reject(new Error('Cannot load app')); setTimeout(() => reject(new Error('App load timeout')), 10000); });
-    const d = frame.contentDocument; const get = id => d.getElementById(id);
-    test('App starts with consent gates closed and site unchanged', () => { assert(get('start-session').disabled); assert(get('adaptation-offer').hidden); assert(!get('demo-site').hasAttribute('data-hh-support')); });
-    test('Normal demo never offers adaptation', () => { d.querySelector('[data-scenario="0"]').click(); assert(get('adaptation-offer').hidden); assert(get('result-title').textContent.includes('Обычный')); assert(!get('demo-site').hasAttribute('data-hh-support')); });
-    test('Severe demo requires consent, applies and reverts adaptation', () => { d.querySelector('[data-scenario="3"]').click(); assert(!get('adaptation-offer').hidden); assert(get('apply-adaptation').disabled); get('adaptation-consent').click(); assert(!get('apply-adaptation').disabled); get('apply-adaptation').click(); assert(get('demo-site').dataset.hhSupport === '3'); get('revert-adaptation').click(); assert(!get('demo-site').hasAttribute('data-hh-support')); });
-    test('Revoking adaptation consent restores the original interface', () => { get('adaptation-consent').click(); get('apply-adaptation').click(); assert(get('demo-site').dataset.hhSupport === '3'); get('adaptation-consent').click(); assert(!get('demo-site').hasAttribute('data-hh-support')); });
-    test('Start, pause, finish early and delete follow consent', () => { get('collection-consent').click(); get('start-session').click(); assert(get('start-session').disabled); assert(d.querySelector('[data-scenario="2"]').disabled); get('pause-session').click(); assert(get('pause-session').textContent === 'Продолжить'); get('finish-session').click(); assert(get('result-title').textContent === 'Недостаточно данных'); assert(get('adaptation-offer').hidden); get('delete-data').click(); assert(!get('collection-consent').checked); assert(get('export-report').disabled); });
-    test('Local request form safely renders user text and supports undo', () => { const title = '<img src=x onerror=alert(1)>'; get('request-title').value = title; get('request-text').value = 'Учебное описание'; get('request-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); assert(get('request-count').textContent === '3'); assert(get('requests-list').firstElementChild.querySelector('strong').textContent === title); assert(!get('requests-list').querySelector('img')); get('request-feedback').querySelector('button').click(); assert(get('request-count').textContent === '2'); assert(get('request-title').value === title); });
-    test('Collection revocation clears result and adaptation', () => { d.querySelector('[data-scenario="2"]').click(); get('adaptation-consent').click(); get('apply-adaptation').click(); get('collection-consent').click(); get('collection-consent').click(); assert(get('data-source').textContent === 'Нет данных'); assert(!get('demo-site').hasAttribute('data-hh-support')); assert(get('export-report').disabled); });
-    test('Standard interface fits desktop and narrow viewports', () => {
-      for (const width of [1440, 768, 390, 320]) {
-        frame.style.width = width + 'px';
-        const viewport = d.documentElement.clientWidth;
-        assert(d.documentElement.scrollWidth <= viewport, width + 'px viewport overflows: ' + d.documentElement.scrollWidth + ' > ' + viewport);
+    await load('../index.html?test=1');
+    const d = frame.contentDocument, w = frame.contentWindow, get = id => d.getElementById(id);
+    const action = (id, name) => get('requests-list').querySelector('[data-id="' + id + '"][data-action="' + name + '"]');
+    test('One resident portal has no manual observation workflow', () => {
+      assert(!get('start-session') && !get('pause-session') && !get('arm-schedule'));
+      assert(!d.querySelector('.observation-card')); assert(d.documentElement.dataset.role === 'user');
+      for (const el of d.querySelectorAll('[data-admin-only]')) assert(w.getComputedStyle(el).display === 'none');
+      assert(get('services') && get('city-news') && get('comfort')); assert(!get('collection-consent').checked);
+    });
+    test('All service buttons fill the actual request form', () => {
+      for (const el of d.querySelectorAll('[data-service]')) {
+        el.click(); assert(get('request-form').elements.category.value);
+        if (el.dataset.service !== 'other') assert(get('request-title').value.length > 0);
       }
     });
-    test('Highest adaptation remains usable in a narrow viewport', () => {
-      frame.style.width = '390px'; d.querySelector('[data-scenario="3"]').click(); get('adaptation-consent').click(); get('apply-adaptation').click();
-      assert(d.documentElement.scrollWidth <= d.documentElement.clientWidth, 'Adapted page overflows');
-      assert(frame.contentWindow.getComputedStyle(get('request-title')).minHeight === '60px');
-      assert(frame.contentWindow.getComputedStyle(get('request-title')).fontSize === '18px');
+    test('Search and filters combine, and reset restores the list', () => {
+      get('request-search').value = 'Освещение'; get('request-search').dispatchEvent(new w.Event('input'));
+      assert(get('requests-list').children.length === 1);
+      d.querySelector('[data-filter="done"]').click(); assert(!get('requests-empty').hidden);
+      get('reset-filters').click(); assert(get('requests-list').children.length === 2);
+      d.querySelector('[data-summary-filter="active"]').click(); assert(get('requests-list').children.length === 1);
+      get('reset-filters').click();
     });
-    test('Scheduled collection cannot be armed without collection consent', () => { get('delete-data').click(); assert(get('arm-schedule').disabled); get('collection-consent').click(); assert(!get('arm-schedule').disabled); });
-    test('Actual schedule UI locks conflicting starts and supports cancellation', () => {
-      const localValue = ms => { const date = new Date(ms); return new Date(ms - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-      get('window-start').value = localValue(Date.now() + 180000); get('window-end').value = localValue(Date.now() + 7200000); get('arm-schedule').click();
-      assert(!get('cancel-schedule').hidden); assert(get('start-session').disabled); assert(d.querySelector('[data-scenario="0"]').disabled); get('cancel-schedule').click(); assert(get('cancel-schedule').hidden); assert(!get('start-session').disabled);
+    test('Sorting changes request order', () => {
+      const first = get('requests-list').firstElementChild.dataset.requestId; get('sort-requests').click();
+      assert(first !== get('requests-list').firstElementChild.dataset.requestId); get('sort-requests').click();
     });
-    test('Persistent save and revocation work through the actual app', () => { get('storage-consent').click(); get('start-session').click(); const saved = JSON.parse(frame.contentWindow.localStorage.getItem('handhelper.test.v2')); assert(saved.version === 2); assert(saved.wasRunning); get('storage-consent').click(); assert(frame.contentWindow.localStorage.getItem('handhelper.test.v2') === null); get('delete-data').click(); });
-    // Reload the application with a saved numeric session. Consent toggles must not overwrite it.
-    const checkpoint = new HH.Collector(document.getElementById('fixture')).checkpoint(); checkpoint.activeMs = 123450;
-    frame.contentWindow.localStorage.setItem('handhelper.test.v2', JSON.stringify({ version: 2, checkpoint, model, wasRunning: true, windowEnd: null }));
-    await new Promise((resolve, reject) => { frame.onload = resolve; frame.onerror = reject; frame.src = '../index.html?test=1&reload=1'; });
-    const restored = frame.contentDocument; const rg = id => restored.getElementById(id);
-    test('Reload never silently resumes collection and preserves the saved checkpoint', () => { assert(!rg('restore-session').hidden); assert(!rg('collection-consent').checked); assert(rg('pause-session').disabled); rg('collection-consent').click(); rg('storage-consent').click(); assert(JSON.parse(frame.contentWindow.localStorage.getItem('handhelper.test.v2')).checkpoint.activeMs === 123450); rg('restore-session').click(); assert(rg('session-timer').textContent.startsWith('02:03')); assert(!rg('pause-session').disabled); rg('delete-data').click(); });
-    test('Returning from browser history requires renewed collection consent', () => { rg('collection-consent').click(); rg('start-session').click(); frame.contentWindow.dispatchEvent(new frame.contentWindow.PageTransitionEvent('pageshow', { persisted: true })); assert(!rg('collection-consent').checked); assert(rg('pause-session').disabled); assert(rg('start-session').disabled); rg('delete-data').click(); });
-    const adapter = new HH.Adaptation(rg('demo-site')); adapter.apply(2, true);
+    test('Creating a request safely renders text and supports undo', () => {
+      const title = '<img src=x onerror=alert(1)>';
+      get('request-title').value = title; get('request-text').value = 'Учебное описание';
+      get('request-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+      assert(get('request-count').textContent === '3'); assert(!get('requests-list').querySelector('img'));
+      assert(get('requests-list').firstElementChild.querySelector('strong').textContent === title);
+      get('request-feedback').querySelector('button').click(); assert(get('request-count').textContent === '2');
+      assert(get('request-title').value === title);
+    });
+    test('Favorites and status buttons update counters and filters', () => {
+      action(1, 'favorite').click(); assert(get('favorite-requests').textContent === '1');
+      d.querySelector('[data-filter="favorites"]').click(); assert(get('requests-list').children.length === 1);
+      action(1, 'status').click(); assert(get('done-requests').textContent === '2');
+      get('reset-filters').click(); action(1, 'status').click(); action(1, 'favorite').click();
+      assert(get('favorite-requests').textContent === '0');
+    });
+    test('Request details and repeat use the selected request', () => {
+      action(1, 'details').click(); assert(get('details-dialog').open);
+      assert(get('details-description').textContent.includes('фонари')); get('details-dialog').close();
+      action(1, 'repeat').click(); assert(get('request-title').value === 'Освещение на пешеходной дорожке');
+      assert(get('request-text').value.includes('фонари'));
+    });
+    test('Deleting a request and undo preserve the item', () => {
+      action(1, 'delete').click(); assert(get('request-count').textContent === '1');
+      get('request-feedback').querySelector('button').click(); assert(get('request-count').textContent === '2'); assert(action(1, 'details'));
+    });
+    test('News, subscription, help, and form reset work', () => {
+      d.querySelector('[data-news="park"]').click(); assert(get('details-dialog').open); assert(get('details-title').textContent.includes('дорожки')); get('details-dialog').close();
+      get('subscribe-news').click(); assert(get('subscribe-news').getAttribute('aria-pressed') === 'true'); get('subscribe-news').click(); assert(get('subscribe-news').getAttribute('aria-pressed') === 'false');
+      get('open-help').click(); assert(get('details-dialog').open); get('details-dialog').close();
+      get('request-form').querySelector('[type="reset"]').click(); assert(get('request-title').value === '');
+    });
+    test('Local collection is automatic after consent and does not require a start button', () => {
+      get('collection-consent').click(); assert(get('collection-status').textContent.includes('автоматически'));
+      get('collection-consent').click(); assert(get('collection-status').textContent.includes('выключен'));
+      assert(!get('demo-site').hasAttribute('data-hh-support'));
+    });
+    let now = 0, focused = true, visibility = 'visible';
+    Object.defineProperty(w.performance, 'now', { value: () => now });
+    Object.defineProperty(d, 'hasFocus', { value: () => focused });
+    Object.defineProperty(d, 'visibilityState', { get: () => visibility });
+    w.dispatchEvent(new w.Event('blur')); w.dispatchEvent(new w.Event('focus'));
+    const activity = () => get('demo-site').dispatchEvent(new w.Event('pointermove'));
+    activity(); now = 30000; activity(); visibility = 'hidden'; d.dispatchEvent(new w.Event('visibilitychange'));
+    now = 90000; activity(); visibility = 'visible'; focused = false; d.dispatchEvent(new w.Event('visibilitychange'));
+    now = 150000; activity();
+    test('Background time does not trigger adaptation', () => { assert(!get('comfort-dialog').open); });
+    focused = true; w.dispatchEvent(new w.Event('focus')); activity();
+    for (const time of [180000, 210000, 239999]) { now = time; activity(); }
+    test('No offer before two minutes of active use', () => { assert(!get('comfort-dialog').open); });
+    get('open-help').click(); now = 240000; activity();
+    test('Automatic offer waits until an existing dialog closes', () => { assert(get('details-dialog').open && !get('comfort-dialog').open); });
+    get('details-dialog').close(); activity();
+    test('Two minutes automatically offers adaptation without a manual start', () => { assert(get('comfort-dialog').open); assert(!get('demo-site').hasAttribute('data-hh-support')); });
+    get('comfort-dialog').querySelector('[value="decline"]').click();
+    await new Promise(resolve => w.setTimeout(resolve, 30)); now += 120000; activity();
+    await new Promise(resolve => w.setTimeout(resolve, 1100));
+    test('Declining leaves the site unchanged and does not repeat the popup', () => { assert(!get('comfort-dialog').open); assert(!get('demo-site').hasAttribute('data-hh-support')); });
+    get('open-comfort').click(); get('comfort-level').value = '3'; get('accept-comfort').click();
+    test('Adaptation increases new portal controls as well as the form', () => {
+      assert(get('demo-site').dataset.hhSupport === '3');
+      assert(w.getComputedStyle(get('request-title')).minHeight === '60px');
+      assert(w.getComputedStyle(d.querySelector('[data-service]')).minHeight === '60px');
+    });
+    test('The complete portal fits desktop and narrow screens with adaptation', () => {
+      for (const width of [1440, 768, 390, 320]) { frame.style.width = width + 'px'; assert(d.documentElement.scrollWidth <= d.documentElement.clientWidth, 'Adapted portal overflows at ' + width); }
+      get('user-revert').click(); assert(!get('demo-site').hasAttribute('data-hh-support'));
+      for (const width of [1440, 768, 390, 320]) { frame.style.width = width + 'px'; assert(d.documentElement.scrollWidth <= d.documentElement.clientWidth, 'Standard portal overflows at ' + width); }
+    });
+    get('collection-consent').click();
+    await waitFor(() => w.HandHelper.statistics.state() === 'ready');
+    d.querySelector('[data-service="lighting"]').click();
+    get('request-text').value = 'Private test description';
+    get('request-form').dispatchEvent(new w.Event('submit', { cancelable: true }));
+    await w.HandHelper.statistics.flush();
+    await load('../index.html?test=1&role=admin');
+    const ad = frame.contentDocument, aw = frame.contentWindow, ag = id => ad.getElementById(id);
+    await waitFor(() => aw.HandHelper && aw.HandHelper.authReady);
+    await aw.HandHelper.authReady;
+    test('Administrator URL opens login without granting access', () => {
+      assert(ad.documentElement.dataset.role === 'user'); assert(ag('admin-login-dialog').open);
+      assert(aw.getComputedStyle(ag('admin-statistics')).display === 'none');
+    });
+    const anonymous = await aw.fetch('/api/admin/statistics');
+    test('Anonymous browser cannot request administrator statistics', () => { assert(anonymous.status === 401); });
+    ag('admin-password').value = 'wrong-test-password'; ag('submit-admin-login').click();
+    await waitFor(() => ag('admin-login-error').textContent.length > 0);
+    test('Wrong credentials keep administrator panels hidden', () => {
+      assert(ad.documentElement.dataset.role === 'user'); assert(ag('admin-login-error').textContent.includes('Неверный'));
+      assert(ag('admin-password').value === '');
+    });
+    if (window.__HH_TEST_ADMIN_PASSWORD) {
+    ag('admin-password').value = window.__HH_TEST_ADMIN_PASSWORD; ag('submit-admin-login').click();
+    await waitFor(() => ad.documentElement.dataset.role === 'admin');
+    await waitFor(() => ag('statistics-recent').children.length > 0);
+    test('Successful login shows real saved visitor statistics', () => {
+      assert(!ag('admin-login-dialog').open && !ag('admin-logout-button').hidden);
+      assert(Number(ad.querySelector('[data-statistic="sessions"]').textContent) >= 1);
+      assert(Number(ad.querySelector('[data-statistic="requests"]').textContent) >= 1);
+      assert(ag('statistics-trend').children.length === 7 && !ag('export-statistics').disabled);
+    });
+    test('Administrator uses the same portal with extra analytics, without manual starts', () => {
+      assert(ad.documentElement.dataset.role === 'admin' && ag('services') && ag('city-news'));
+      assert(!ag('start-session') && !ag('arm-schedule'));
+      for (const el of ad.querySelectorAll('section[data-admin-only]')) assert(aw.getComputedStyle(el).display !== 'none');
+      assert(aw.getComputedStyle(ag('comfort')).display !== 'none');
+    });
+    test('Live analytics and scenarios work without stopping collection', () => {
+      ag('collection-consent').click(); ag('show-live-analysis').click(); assert(ag('result-title').textContent === 'Недостаточно данных');
+      ad.querySelector('[data-scenario="3"]').click(); assert(!ag('adaptation-offer').hidden); assert(ag('apply-adaptation').disabled);
+      ag('adaptation-consent').click(); ag('apply-adaptation').click(); assert(ag('demo-site').dataset.hhSupport === '3');
+      ag('revert-adaptation').click(); assert(!ag('demo-site').hasAttribute('data-hh-support'));
+    });
+    const transfer = new aw.DataTransfer(); transfer.items.add(new aw.File([JSON.stringify(HH.studyExample())], 'study.json', { type: 'application/json' }));
+    ag('training-file').files = transfer.files; ag('training-file').dispatchEvent(new aw.Event('change'));
+    await new Promise(resolve => aw.setTimeout(resolve, 100));
+    test('Model import still trains while the portal remains usable', () => { assert(ag('training-status').textContent.includes('16')); assert(!ag('export-evaluation').disabled); });
+    const adapter = new HH.Adaptation(ag('demo-site')); adapter.apply(2, true);
     const exportFrame = document.createElement('iframe'); exportFrame.title = 'Standalone export fixture';
-    const loaded = new Promise((resolve, reject) => { exportFrame.onload = resolve; exportFrame.onerror = reject; });
-    exportFrame.srcdoc = adapter.exportHTML(); document.body.append(exportFrame); await loaded;
-    test('Exported standalone HTML retains a working local request form', () => {
-      const ed = exportFrame.contentDocument, form = ed.getElementById('request-form'); form.elements.title.value = 'Standalone test'; form.elements.description.value = 'No server';
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); assert(ed.getElementById('request-count').textContent === '3'); assert(ed.getElementById('requests-list').firstElementChild.textContent.includes('Standalone test')); assert(!ed.querySelector('script[src]')); assert(!ed.querySelector('.precision-tasks'));
+    const exported = new Promise(resolve => { exportFrame.onload = resolve; }); exportFrame.srcdoc = adapter.exportHTML(); document.body.append(exportFrame); await exported;
+    test('Standalone export contains a working form without inactive portal controls or private requests', () => {
+      const ed = exportFrame.contentDocument; assert(!ed.querySelector('[data-portal-only]') && !ed.getElementById('comfort'));
+      const ef = ed.getElementById('request-form'); ef.elements.title.value = 'Standalone request'; ef.elements.description.value = 'Description'; ef.dispatchEvent(new Event('submit', { cancelable: true }));
+      assert(ed.getElementById('request-count').textContent === '3');
     });
     exportFrame.remove(); adapter.revert();
-  } catch (error) { failed++; lines.push('FAIL app integration: ' + error.message); }
+    test('Deleting analytics clears consent and reports without deleting resident requests', () => { ag('delete-data').click(); assert(!ag('collection-consent').checked && ag('export-report').disabled); assert(ag('request-count').textContent === '2'); });
+    ag('statistics-period').value = '30'; ag('statistics-period').dispatchEvent(new aw.Event('change'));
+    await waitFor(() => ag('statistics-trend').children.length === 30);
+    test('Statistics period switches the displayed series', () => { assert(ag('statistics-trend').children.length === 30); });
+    test('Administrator dashboard fits narrow viewports', () => {
+      for (const width of [1440, 768, 390, 320]) { frame.style.width = width + 'px'; assert(ad.documentElement.scrollWidth <= ad.documentElement.clientWidth, 'Dashboard overflows at ' + width); }
+    });
+    await load('../index.html?test=1');
+    const restored = frame.contentWindow, rd = frame.contentDocument;
+    await waitFor(() => restored.HandHelper && restored.HandHelper.authReady); await restored.HandHelper.authReady;
+    test('Reload restores administrator role from the server session', () => { assert(rd.documentElement.dataset.role === 'admin'); });
+    rd.getElementById('admin-logout-button').click();
+    await waitFor(() => rd.documentElement.dataset.role === 'user');
+    const loggedOut = await restored.fetch('/api/admin/statistics');
+    test('Logout hides and clears statistics and removes server access', () => { assert(loggedOut.status === 401); assert(rd.getElementById('statistics-recent').children.length === 0); assert(!rd.getElementById('admin-login-button').hidden); });
+    } else { skipped++; lines.push('SKIP authenticated administrator checks: run tests/Test-Server.ps1 -WithBrowser'); }
+  } catch (error) { failed++; lines.push('FAIL portal integration: ' + error.message); }
   frame.remove();
-  const passed = lines.length - failed;
+  const passed = lines.length - failed - skipped;
   lines.push('\n' + passed + ' passed, ' + failed + ' failed');
   document.getElementById('results').textContent = lines.join('\n');
   document.body.dataset.testStatus = failed ? 'failed' : 'passed';
